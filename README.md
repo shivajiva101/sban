@@ -1,31 +1,41 @@
 # sban
 
-This mod is based on the concepts introduced by xban2, expanding on them
-by using an sql db instead of a serialised table file. Resulting in an
-improvement in the robustness of the data, offering the accessibility of
-connecting to the db via SSH with your favourite db management gui, automatic
-ban management and the capability to ban an unknown player with server
-privilege. Currently the add and update transactions are coded without
-locks so it's not recommended to write to the db whilst minetest is using it.
-Reading the db shouldn't be an issue.
+This mod is based on the concepts introduced by xban2, and expands on them
+by using an sql database instead of a serialised table file. This approach to
+ban management:
+
+* Improves the robustness of the data.
+* Grants an enhanced view of player accounts and ban records.
+* Provides tiered access to player record information.
+* Provides automatic ban expiration.
+* Provides the capability to pre-emptively ban players.
+* Offers increased accessibility via SSH connections to the database with your
+favourite database management gui.
+* Can preserve existing bans by importing records from Minetest or xban2.
+
+Currently the add and update transactions are coded without
+locks so it's not recommended to write to the database whilst Minetest is using it.
+Reading the database shouldn't be an issue.
 
 #### INSTALLATION
 
-sban requires lsqlite3(https://github.com/LuaDist/lsqlite3)
+sban requires lsqlite3 (https://github.com/LuaDist/lsqlite3).
 
-If you have luarocks(https://luarocks.org/) installed on the target machine
-you can easily install it in a terminal with,
+If you have luarocks (https://luarocks.org/) installed on the target server,
+you can easily install lsqlite3 in a terminal:
 
     luarocks install lsqlite3
 
 If the target server runs mods in secure mode[recommended], you must add sban
-to the list of trusted mods in minetest.conf
+to the list of trusted mods in minetest.conf:
+
+	secure.trusted_mods = sban
 
 #### COMMANDS
 
 The mod provides the following chat console commands. These commands require
-the ban privilege, ban_admin privilege increases the amount of information
-displayed from the records.
+the ban privilege. The ban_admin and server privileges extend the functionality
+of some commands.
 
 #### ban
 
@@ -35,8 +45,8 @@ Bans a player permanently.
 
 Example: /ban Steve Some reason.
 
-Server privilege allows you to add bans for player names or ip's that the
-server has no records for
+The server privilege enables the pre-emptive banning of player names or
+IP addresses for which the server has no current record.
 
 #### tempban
 
@@ -44,14 +54,14 @@ Bans a player temporarily.
 
 ```Usage: /tempban <name_or_ip> <time> <reason>```
 
-Just like xban2 the time parameter is a string in the format <count><unit>
-where <unit> is one of s for seconds, m for minutes, h for hours, D for days,
+Example: /tempban Steve 2D Some reason.
+
+The time parameter is a string in the format \<count> \<unit>,
+where \<unit>  is either s for seconds, m for minutes, h for hours, D for days,
 W for weeks, M for months, or Y for years. If the unit is omitted, it is
-assumed to mean seconds. For example, 42 means 42 seconds, 1337m 1337 minutes,
+assumed to mean seconds. For example, 42 means 42 seconds, 1337m means 1337 minutes,
 and so on. You can chain more than one such group and they will add up.
 For example, 1Y3M3D7h will ban for 1 year, 3 months, 3 days and 7 hours.
-
-Example: /tempban Steve 2D Some reason.
 
 #### unban
 
@@ -59,21 +69,32 @@ Unbans a player.
 
 ```Usage: /unban <name_or_ip> <reason>```
 
-Example: /unban Steve Some reason
+Example: /unban Steve Some reason.
+
+Note that this command requires a reason.
 
 #### ban_record
 
-Shows the ban record on chat.
+Displays player record and ban record.
 
 ```Usage: /ban_record <name_or_ip>```
 
-This prints player records and bans, with the time the ban came into effect,
-the expiration time (if applicable), the reason, and the source of the ban.
-The record is printed to chat with one entry per line. The records displayed
-are limited by the conf setting sban.display_max to prevent spamming the chat
-console, the default is last 10 records.
-
 Example: /ban_record Steve
+
+This prints the player record and ban record for a player. The records are
+printed to the chat console with one entry per line.
+
+The player record includes names and, if the user has the ban_admin privilege,
+IP addresses used by the player. The number of records displayed is limited
+to 10 by default to prevent chat console spam, and can be adjusted through
+the sban.display_max setting in minetest.conf.
+
+The ban record includes a list of all ban related actions performed on the player
+under any known name or IP address. This includes the time a ban came into effect,
+the expiration time (if applicable), the reason, and the source of the ban.
+
+Note that the records of players with the server privilege can only be viewed
+by other players with the server privilege.
 
 #### ban_wl
 
