@@ -9,7 +9,7 @@ privilege. Currently the add and update transactions are coded without
 locks so it's not recommended to write to the db whilst minetest is using it.
 Reading the db shouldn't be an issue.
 
-INSTALLATION
+#### INSTALLATION
 
 sban requires lsqlite3(https://github.com/LuaDist/lsqlite3)
 
@@ -21,13 +21,13 @@ you can easily install it in a terminal with,
 If the target server runs mods in secure mode[recommended], you must add sban
 to the list of trusted mods in minetest.conf
 
-COMMANDS
+#### COMMANDS
 
 The mod provides the following chat console commands. These commands require
 the ban privilege, ban_admin privilege increases the amount of information
 displayed from the records.
 
-ban
+#### ban
 
 Bans a player permanently.
 
@@ -38,7 +38,7 @@ Example: /ban Steve Some reason.
 Server privilege allows you to add bans for player names or ip's that the
 server has no records for
 
-tempban
+#### tempban
 
 Bans a player temporarily.
 
@@ -53,7 +53,7 @@ For example, 1Y3M3D7h will ban for 1 year, 3 months, 3 days and 7 hours.
 
 Example: /tempban Steve 2D Some reason.
 
-unban
+#### unban
 
 Unbans a player.
 
@@ -61,7 +61,7 @@ Usage: /unban <name_or_ip> <reason>
 
 Example: /unban Steve Some reason
 
-ban_record
+#### ban_record
 
 Shows the ban record on chat.
 
@@ -75,7 +75,7 @@ console, the default is last 10 records.
 
 Example: /ban_record Steve
 
-ban_wl
+#### ban_wl
 
 Manages the whitelist.
 
@@ -91,7 +91,7 @@ The list subcommand lists the members on the whitelist.
 
 Example: /ban_wl add Steve
 
-ADMINISTRATION COMMANDS
+#### ADMINISTRATION COMMANDS
 
 These are commands for administering the server and require server privilege.
 You can import current bans from the xban2 db file or ipban.txt
@@ -100,7 +100,7 @@ This is an intensive process that will lag the server so it's recommended
 you perform the process on a local instance and copy the db to the server
 before starting with sban mod installed.
 
-ban_dbi
+#### ban_dbi
 
 Imports bans from xban2 or ipban.
 
@@ -117,7 +117,7 @@ command on each file. For example:
 each record is checked against the database, based on name to prevent duplicate
 entries.
 
-ban_dbe
+#### ban_dbe
 
 Extracts all records from a xban2 file to sql inserts in a file you can
 import via sqlite.
@@ -135,7 +135,7 @@ from sqlite prompt using:
 
 The time of the import operation is dependant on the size of the sql file.
 
-CONFIG
+#### CONFIG
 
 You can add these optional settings to minetest.conf to alter some aspects of
 sban mods behaviour.
@@ -159,7 +159,7 @@ after enabling. To return to normal behaviour delete the setting and restart
 the server, bearing in mind existing bans created when it was active, will
 still expire.
 
-CREDITS:
+#### CREDITS:
 
 Shara for suggesting improvements and providing a remote server test environment
 
