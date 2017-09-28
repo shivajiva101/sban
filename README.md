@@ -31,7 +31,7 @@ displayed from the records.
 
 Bans a player permanently.
 
-Usage: /ban <name_or_ip> <reason>
+``` Usage: /ban <name_or_ip> <reason> ```
 
 Example: /ban Steve Some reason.
 
@@ -42,7 +42,7 @@ server has no records for
 
 Bans a player temporarily.
 
-Usage: /tempban <name_or_ip> <time> <reason>
+```Usage: /tempban <name_or_ip> <time> <reason>```
 
 Just like xban2 the time parameter is a string in the format <count><unit>
 where <unit> is one of s for seconds, m for minutes, h for hours, D for days,
@@ -57,7 +57,7 @@ Example: /tempban Steve 2D Some reason.
 
 Unbans a player.
 
-Usage: /unban <name_or_ip> <reason>
+```Usage: /unban <name_or_ip> <reason>```
 
 Example: /unban Steve Some reason
 
@@ -79,7 +79,7 @@ Example: /ban_record Steve
 
 Manages the whitelist.
 
-Usage: /ban_wl (add|del|list) <name_or_ip>
+```Usage: /ban_wl (add|del|list) <name_or_ip>```
 
 Whitelisted players are allowed on the server even if they are marked
 as banned. This is useful to ensure moderators cannot ban each other,
