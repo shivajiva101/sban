@@ -65,7 +65,7 @@ Example: /unban Steve Some reason
 
 Shows the ban record on chat.
 
-Usage: /ban_record <name_or_ip>
+```Usage: /ban_record <name_or_ip>```
 
 This prints player records and bans, with the time the ban came into effect,
 the expiration time (if applicable), the reason, and the source of the ban.
@@ -104,7 +104,7 @@ before starting with sban mod installed.
 
 Imports bans from xban2 or ipban.
 
-Usage: /ban_dbi <filename>
+```Usage: /ban_dbi <filename>```
 
 Example: /ban_dbi xban.db or /ban_dbi ipban.txt
 
@@ -122,7 +122,7 @@ entries.
 Extracts all records from a xban2 file to sql inserts in a file you can
 import via sqlite.
 
-Usage: /ban_dbe <input_filename>
+```Usage: /ban_dbe <input_filename>```
 
 Example: /ban_dbe xban.db
 
