@@ -1,5 +1,4 @@
 # sban
-by shivajiva101@hotmail.com
 
 This mod is based on the concepts introduced by xban2, expanding on them
 by using an sql db instead of a serialised table file. Resulting in an
