@@ -2,6 +2,7 @@
 -- designed and coded by shivajiva101@hotmail.com
 
 local WP = minetest.get_worldpath()
+local WL = {}
 local ie = minetest.request_insecure_environment()
 
 if not ie then
@@ -15,7 +16,6 @@ ie.require("lsqlite3")
 minetest.register_privilege("ban_admin", "Player bans admin")
 
 local db_version = "0.1"
-local whitelist = {} -- cache
 local db = sqlite3.open(WP.."/sban.sqlite") -- connection
 local expiry = minetest.setting_get("sban.ban_max") or {}
 local owner = minetest.setting_get("name")
@@ -330,16 +330,16 @@ local function add_player(id, player_name, ip_address)
 end
 
 local function add_whitelist(source, name_or_ip)
+    local ts = os.time()
     local q = ([[
     INSERT INTO whitelist
     VALUES ('%s', '%s', %i)
-    ]]):format(name_or_ip, source, os.time())
+    ]]):format(name_or_ip, source, ts)
     db:exec(q)
-	-- cache
-	whitelist[name_or_ip] = true
 end
 
 local function ban_player(name, source, reason, expires)
+    local ts = os.time()
     local id = get_id(name)
     local player = minetest.get_player_by_name(name)
     -- players: id,ban
@@ -357,7 +357,7 @@ local function ban_player(name, source, reason, expires)
     q = ([[
         INSERT INTO bans
         VALUES ('%s','%s','%s','%s','%s','%s','','','','true','%s')
-        ]]):format(id, name, source, os.time(), reason, expires, last_pos)
+        ]]):format(id, name, source, ts, reason, expires, last_pos)
     db:exec(q)
 
     local msg_k,msg_l
@@ -396,13 +396,15 @@ end
 ]]
 
 local function update_login(player_name)
+    local ts = os.time()
     local q = ([[
         UPDATE playerdata SET last_login = %s WHERE name = '%s'
-        ]]):format(os.time(), player_name)
+        ]]):format(ts, player_name)
     db:exec(q)
 end
 
 local function unban_player(id, name, source, reason)
+    local ts = os.time()
     local q = ([[
         UPDATE players SET ban = '%s' WHERE id = '%s'
         ]]):format(false, id)
@@ -414,7 +416,7 @@ local function unban_player(id, name, source, reason)
         u_reason = '%s',
         u_date = '%i'
         WHERE id = '%i' AND name = '%s'
-    ]]):format(false,source,reason,os.time(),id,name)
+    ]]):format(false,source,reason,ts,id,name)
     db:exec(q)
     -- log event
     minetest.log("action",
@@ -439,8 +441,6 @@ local function del_whitelist(name_or_ip)
     DELETE FROM whitelist WHERE name = '%s'
     ]]):format(name_or_ip)
     db:exec(q)
-	-- remove from cache
-	whitelist[name_or_ip] = {}
 end
 --[[
 #######################
@@ -498,7 +498,7 @@ if get_version() == nil then
     set_version(db_version)
 end
 
-whitelist = get_whitelist()
+WL = get_whitelist()
 
 local function import_xban(name, file_name)
 
@@ -879,34 +879,51 @@ minetest.register_chatcommand("ban_wl", {
 	params = "(add|del|list) <name_or_ip>",
 	privs = {server=true},
 	func = function(name, params)
-		local cmd, name_or_ip = params:match("(%S+)%s+(.+)")
-		if not cmd == "list" then
-			if not (cmd and name_or_ip) then
-				return false, ("Usage: /ban_wl (add|del) "
-				.."<name_or_ip> \nor /ban_wl list")
-			end
+		local helper = ("Usage: /ban_wl (add|del) "
+		.."<name_or_ip> \nor /ban_wl list")
+		local param = {}
+		local i = 1
+		for word in params:gmatch("%S+") do
+			param[i] =  word
+			i = i + 1
 		end
-		if cmd == "add" then
-			add_whitelist(name_or_ip, name)
-			minetest.log("action",
-			("%s added %s to whitelist"):format(name, name_or_ip))
-			return true, name_or_ip.." added to whitelist!"
-		elseif cmd == "del" then
-			del_whitelist(name_or_ip)
-			minetest.log("action",("%s removed %s from whitelist"
-		):format(name, name_or_ip))
-			return true, name_or_ip.." removed from whitelist!"
-		elseif cmd == "list" then
-			if #whitelist > 0 then
-				local str = ""
-				for k,v in pairs(whitelist) do
-					str = str..k.."\n"
-				end
+		if #param < 1 then
+			return false, helper
+		end
+		if param[1] == "list" then
+			local str = ""
+			for k,v in pairs(WL) do
+				str = str..k.."\n"
+			end
+			if str ~= "" then
 				return true, str
-			else
-				return true, "Whitelist empty!"
+			end
+			return true, "Whitelist empty!"
+		end
+		if param[2] then
+			if param[1] == "add" then
+				if not WL[param[2]] then
+					add_whitelist(name,param[2])
+					WL[param[2]] = true
+					minetest.log("action",
+					("%s added %s to whitelist"):format(name, param[2]))
+					return true, param[2].." added to whitelist!"
+				else
+					return false, param[2].." is already whitelisted!"
+				end
+			elseif param[1] == "del" then
+				if WL[param[2]] then
+					del_whitelist(param[2])
+					WL[param[2]] = nil
+					minetest.log("action",("%s removed %s from whitelist"
+				):format(name, param[2]))
+					return true, param[2].." removed from whitelist!"
+				else
+					return false, param[2].." isn't on the whitelist"
+				end
 			end
 		end
+		return false, helper
 	end,
 })
 
@@ -990,9 +1007,9 @@ end)
 
 minetest.register_on_prejoinplayer(function(name, ip)
 	-- check player isn't whitelisted
-	if whitelist[name] or whitelist[ip] then
+	if WL[name] or WL[ip] then
 		minetest.log("action", "[sban] "..
-		name.." whitelist entry permits login")
+		name.." whitelisted entry permits login")
 		return
 	end
 	-- retrieve player record
