@@ -26,6 +26,13 @@ local t_units = {
 	[""] = 1,
 }
 
+-- db:exec wrapper for error reporting
+local function db_exec(stmt)
+  if db:exec(stmt) ~= sqlite3.OK then
+    minetest.log("info", "Sqlite ERROR:  ", db:errmsg())
+  end
+end
+
 --[[
 #########################
 ###  Parse Functions  ###
@@ -64,7 +71,7 @@ createDb = "CREATE TABLE IF NOT EXISTS bans (id INTEGER, "
     .."CREATE TABLE IF NOT EXISTS whitelist (name VARCHAR(50), "
     .."source VARCHAR(50), created INTEGER);\n"
     .."CREATE TABLE IF NOT EXISTS version (rev VARCHAR(20));\n"
-db:exec(createDb)
+db_exec(createDb)
 
 --[[
 ###########################
@@ -303,7 +310,7 @@ end
 local function create_entry(player_name, ip_address)
     -- players table id is auto incremented
     -- id,ban
-    db:exec[[
+    db_exec[[
         INSERT INTO players (ban)
         VALUES ('false')
         ]]
@@ -312,30 +319,30 @@ local function create_entry(player_name, ip_address)
     -- create timestamp
     local ts = os.time()
     -- id,name,ip,created,last_login
-    q = ([[
+    local stmt = ([[
         INSERT INTO playerdata
         VALUES (%s,'%s','%s',%s,%s)
         ]]):format(id, player_name, ip_address, ts, ts)
-    db:exec(q)
+    db_exec(stmt)
     return id
 end
 
 local function add_player(id, player_name, ip_address)
     local ts = os.time()
-    local q = ([[
+    local stmt = ([[
         INSERT INTO playerdata
         VALUES (%s,'%s','%s',%s,%s)
         ]]):format(id, player_name, ip_address, ts, ts)
-    db:exec(q)
+    db_exec(stmt)
 end
 
 local function add_whitelist(source, name_or_ip)
     local ts = os.time()
-    local q = ([[
+    local stmt = ([[
     INSERT INTO whitelist
     VALUES ('%s', '%s', %i)
     ]]):format(name_or_ip, source, ts)
-    db:exec(q)
+    db_exec(stmt)
 end
 
 local function ban_player(name, source, reason, expires)
@@ -343,10 +350,10 @@ local function ban_player(name, source, reason, expires)
     local id = get_id(name)
     local player = minetest.get_player_by_name(name)
     -- players: id,ban
-    local q = ([[
+    local stmt = ([[
         UPDATE players SET ban = 'true' WHERE id = '%s'
         ]]):format(id)
-    db:exec(q)
+    db_exec(stmt)
     -- initialise last position
     local last_pos = ""
     if player then
@@ -354,11 +361,11 @@ local function ban_player(name, source, reason, expires)
     end
     -- id,name,source,created,reason,expires,u_source,u_reason,
     -- u_date,active,last_pos
-    q = ([[
+    stmt = ([[
         INSERT INTO bans
         VALUES ('%s','%s','%s','%s','%s','%s','','','','true','%s')
         ]]):format(id, name, source, ts, reason, expires, last_pos)
-    db:exec(q)
+    db_exec(stmt)
 
     local msg_k,msg_l
     -- create kick & log messages
@@ -382,11 +389,11 @@ local function ban_player(name, source, reason, expires)
 end
 
 local function set_version(str)
-    local q = ([[
+    local stmt = ([[
         INSERT INTO version
         VALUES ('%s')
         ]]):format(str)
-    db:exec(q)
+    db_exec(stmt)
 end
 
 --[[
@@ -397,19 +404,19 @@ end
 
 local function update_login(player_name)
     local ts = os.time()
-    local q = ([[
+    local stmt = ([[
         UPDATE playerdata SET last_login = %s WHERE name = '%s'
         ]]):format(ts, player_name)
-    db:exec(q)
+    db_exec(stmt)
 end
 
 local function unban_player(id, name, source, reason)
     local ts = os.time()
-    local q = ([[
+    local stmt = ([[
         UPDATE players SET ban = '%s' WHERE id = '%s'
         ]]):format(false, id)
-    db:exec(q)
-    q = ([[
+    db_exec(stmt)
+    stmt = ([[
         UPDATE bans SET
         active = '%s',
         u_source = '%s',
@@ -417,7 +424,7 @@ local function unban_player(id, name, source, reason)
         u_date = '%i'
         WHERE id = '%i' AND name = '%s'
     ]]):format(false,source,reason,ts,id,name)
-    db:exec(q)
+    db_exec(stmt)
     -- log event
     minetest.log("action",
     ("[sban] %s unbanned by %s reason: %s"):format(name,source,reason))
@@ -430,17 +437,17 @@ end
 ]]
 
 local function del_ban_record(name)
-    local q = ([[
+    local stmt = ([[
     DELETE FROM bans WHERE name = '%s'
     ]]):format(name)
-    db:exec(q)
+    db_exec(stmt)
 end
 
 local function del_whitelist(name_or_ip)
-    local q = ([[
+    local stmt = ([[
     DELETE FROM whitelist WHERE name = '%s'
     ]]):format(name_or_ip)
-    db:exec(q)
+    db_exec(stmt)
 end
 --[[
 #######################
@@ -542,7 +549,7 @@ local function import_xban(name, file_name)
                 -- process the entry
         		-- construct INSERT for players table
         		q = [[INSERT INTO players (ban) VALUES ('true');]]
-        		db:exec(q)
+        		db_exec(q)
 
                 -- If there are more names than IP's use the last entry for
                 -- the reamining entries IP. If there are more IP's use the
@@ -559,7 +566,7 @@ local function import_xban(name, file_name)
         					INSERT INTO playerdata
         					VALUES (%s,'%s','%s',%s,%s)
         					]]):format(id,v,ip[idx],ts,last_seen)
-        				db:exec(q)
+        				db_exec(q)
         			end
         		elseif table.getn(ip) > table.getn(names) then
         			local tbl = table.getn(names)
@@ -572,7 +579,7 @@ local function import_xban(name, file_name)
         					INSERT INTO playerdata
         					VALUES (%s,'%s','%s',%s,%s)
         					]]):format(id,names[idx],v,ts,last_seen)
-        				db:exec(q)
+        				db_exec(q)
         			end
         		else
         			for i,v in ipairs(names) do
@@ -581,7 +588,7 @@ local function import_xban(name, file_name)
         					INSERT INTO playerdata
         					VALUES (%s,'%s','%s',%s,%s)
         				]]):format(id,v,ip[i],ts,last_seen)
-        				db:exec(q)
+        				db_exec(q)
         			end
         		end
         		-- id,name,source,created,reason,expires,u_source,u_reason,
@@ -598,7 +605,7 @@ local function import_xban(name, file_name)
     					INSERT INTO bans
     					VALUES ('%s','%s','%s','%s','%s','%s','','','','%s','%s')
     				]]):format(id,names[1],v.source,v.time,reason,expires,e.banned,last_pos)
-                    db:exec(q)
+                    db_exec(q)
     			end
                 id = id +1
             end
