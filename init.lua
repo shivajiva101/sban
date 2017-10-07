@@ -11,12 +11,14 @@ if not ie then
 end
 
 -- requires library for db access
-ie.require("lsqlite3")
+local _sql = ie.require("lsqlite3")
+-- prevent other mods from using the global sqlite3 library
+if sqlite3 then sqlite3 = {} end
 
 minetest.register_privilege("ban_admin", "Player bans admin")
 
 local db_version = "0.1"
-local db = sqlite3.open(WP.."/sban.sqlite") -- connection
+local db = _sql.open(WP.."/sban.sqlite") -- connection
 local expiry = minetest.setting_get("sban.ban_max") or {}
 local owner = minetest.setting_get("name")
 local display_max = minetest.setting_get("sban.display_max") or 10
@@ -28,7 +30,7 @@ local t_units = {
 
 -- db:exec wrapper for error reporting
 local function db_exec(stmt)
-  if db:exec(stmt) ~= sqlite3.OK then
+  if db:exec(stmt) ~= _sql.OK then
     minetest.log("info", "Sqlite ERROR:  ", db:errmsg())
   end
 end
