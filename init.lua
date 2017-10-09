@@ -13,7 +13,7 @@ end
 -- requires library for db access
 local _sql = ie.require("lsqlite3")
 -- prevent other mods from using the global sqlite3 library
-if sqlite3 then sqlite3 = {} end
+if sqlite3 then sqlite3 = nil end
 
 minetest.register_privilege("ban_admin", "Player bans admin")
 
@@ -1032,7 +1032,7 @@ minetest.register_on_prejoinplayer(function(name, ip)
 	local data = record[#record] -- last entry
 	local date
 	-- check for ban expiry
-	if type(data.expires) == "number" then
+	if type(data.expires) == "number" and data.expires ~= 0 then
 		--temp ban
 		if os.time() > data.expires then
 			-- clear temp ban
