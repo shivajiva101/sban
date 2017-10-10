@@ -416,8 +416,8 @@ local function update_login(player_name)
 	local function unban_player(id, name, source, reason)
 	local ts = os.time()
 	local stmt = ([[
-			UPDATE players SET ban = '%s' WHERE id = '%s'
-	]]):format(false, id)
+			UPDATE players SET ban = '%s' WHERE id = '%i'
+	]]):format('false', id)
 	db_exec(stmt)
 	stmt = ([[
 		UPDATE bans SET
@@ -426,7 +426,7 @@ local function update_login(player_name)
 			u_reason = '%s',
 			u_date = '%i'
 		WHERE id = '%i' AND name = '%s'
-	]]):format(false, source, reason, ts, id, name)
+	]]):format('false', source, reason, ts, id, name)
 	db_exec(stmt)
 	-- log event
 	minetest.log("action",
