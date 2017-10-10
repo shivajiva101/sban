@@ -24,7 +24,7 @@ local owner = minetest.setting_get("name")
 local display_max = minetest.setting_get("sban.display_max") or 10
 local t_units = {
 	s = 1, m = 60, h = 3600,
-	D = 86400, W = 604800, M = 2592000, Y = 31104000,
+	d = 86400, w = 604800, M = 2592000, y = 31104000,
 	[""] = 1,
 }
 
@@ -40,10 +40,11 @@ end
 ###  Parse Functions  ###
 #########################
 ]]
--- convert value to seconds, copied from xban2 mod
+-- convert value to seconds, copied from xban2 mod and modified
 local function parse_time(t)
 	local s = 0
-	for n, u in t:gmatch("(%d+)([smhDWMY]?)") do
+	if t:find("M") == nil then t = t:lower() end
+	for n, u in t:gmatch("(%d+)([smhdwMy]?)") do
 		s = s + (tonumber(n) * (t_units[u] or 1))
 	end
 	return s
