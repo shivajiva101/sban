@@ -44,8 +44,7 @@ end
 -- convert value to seconds, copied from xban2 mod and modified
 local function parse_time(t)
 	local s = 0
-	if t:find("M") == nil then t = t:lower() end
-	for n, u in t:gmatch("(%d+)([smhdwMy]?)") do
+	for n, u in t:gmatch("(%d+)([smhdwyDMY]?)") do
 		s = s + (tonumber(n) * (t_units[u] or 1))
 	end
 	return s
