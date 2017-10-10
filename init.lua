@@ -123,19 +123,19 @@ local function is_banned(name_or_ip)
 
 	if string.find(name_or_ip, "%.") ~= nil then
 		q = ([[
-			SELECT  players.id,
-					playerdata.ip,
-					bans.reason,
-					bans.expires
-			FROM    players
-					INNER JOIN
-					bans ON players.id = bans.id
-					INNER JOIN
-					playerdata ON playerdata.id = players.id
-			WHERE   players.ban = 'true' AND
-					playerdata.ip = '%s' AND
-					bans.active = 'true';
-					]]):format(name_or_ip)
+		SELECT  players.id,
+			playerdata.ip,
+			bans.reason,
+			bans.expires
+		FROM    players
+		INNER JOIN
+			bans ON players.id = bans.id
+			INNER JOIN
+			playerdata ON playerdata.id = players.id
+		WHERE   players.ban = 'true' AND
+			playerdata.ip = '%s' AND
+			bans.active = 'true';
+		]]):format(name_or_ip)
 	end
 	-- fill return table
 	for row in db:nrows(q) do
@@ -149,21 +149,21 @@ local function find_ban(id)
 	local r = {}
 	-- construct
 	local q = ([[
-			SELECT
-				bans.id,
-				bans.name,
-				bans.reason,
-				bans.created,
-				bans.source,
-				bans.expires,
-				bans.u_source,
-				bans.u_reason,
-				bans.u_date,
-				bans.active,
-				bans.last_pos
-		   FROM bans
-		   WHERE bans.id = '%s']]
-	):format(id)
+	SELECT
+		bans.id,
+		bans.name,
+		bans.reason,
+		bans.created,
+		bans.source,
+		bans.expires,
+		bans.u_source,
+		bans.u_reason,
+		bans.u_date,
+		bans.active,
+		bans.last_pos
+	   FROM bans
+	   WHERE bans.id = '%s'
+	]]):format(id)
 	-- fill return table
 	for row in db:nrows(q) do
 		r[#r + 1] = row
@@ -177,16 +177,16 @@ local function find_records(name_or_ip)
 	-- construct
 	local q = ([[
 		SELECT  players.id,
-				players.ban,
-				playerdata.name,
-				playerdata.ip,
-				playerdata.created,
-				playerdata.last_login
+			players.ban,
+			playerdata.name,
+			playerdata.ip,
+			playerdata.created,
+			playerdata.last_login
 		FROM    players
 		INNER JOIN
-				playerdata ON playerdata.id = players.id
-		WHERE   playerdata.name = '%s' OR playerdata.ip = '%s']]
-	):format(name_or_ip, name_or_ip)
+			playerdata ON playerdata.id = players.id
+		WHERE   playerdata.name = '%s' OR playerdata.ip = '%s'
+	]]):format(name_or_ip, name_or_ip)
 	-- fill return table
 	for row in db:nrows(q) do
 		r[#r + 1] = row
@@ -200,14 +200,14 @@ local function find_records_by_id(id)
 	-- construct
 	local q = ([[
 		SELECT  players.id,
-				players.ban,
-				playerdata.name,
-				playerdata.ip,
-				playerdata.created,
-				playerdata.last_login
+			players.ban,
+			playerdata.name,
+			playerdata.ip,
+			playerdata.created,
+			playerdata.last_login
 		FROM    players
 		INNER JOIN
-				playerdata ON playerdata.id = players.id
+			playerdata ON playerdata.id = players.id
 		WHERE   playerdata.id = '%s'
 		]]):format(id)
 	-- fill return table
@@ -224,9 +224,9 @@ local function get_whitelist()
 		r[row.name] = true
 	end
 	return r
-	end
+end
 
-	local function get_version()
+local function get_version()
 	local query = "SELECT * FROM version"
 	for row in db:nrows(query) do
 		return row.rev
@@ -313,9 +313,9 @@ local function create_entry(player_name, ip_address)
 	-- players table id is auto incremented
 	-- id,ban
 	db_exec[[
-			INSERT INTO players (ban)
-			VALUES ('false')
-			]]
+		INSERT INTO players (ban)
+		VALUES ('false')
+	]]
 	-- retrieve id
 	local id = next_id() - 1
 	-- create timestamp
@@ -324,7 +324,7 @@ local function create_entry(player_name, ip_address)
 	local stmt = ([[
 			INSERT INTO playerdata
 			VALUES (%s,'%s','%s',%s,%s)
-			]]):format(id, player_name, ip_address, ts, ts)
+	]]):format(id, player_name, ip_address, ts, ts)
 	db_exec(stmt)
 	return id
 end
@@ -334,16 +334,16 @@ local function add_player(id, player_name, ip_address)
 	local stmt = ([[
 			INSERT INTO playerdata
 			VALUES (%s,'%s','%s',%s,%s)
-			]]):format(id, player_name, ip_address, ts, ts)
+	]]):format(id, player_name, ip_address, ts, ts)
 	db_exec(stmt)
 end
 
 local function add_whitelist(source, name_or_ip)
 	local ts = os.time()
 	local stmt = ([[
-		INSERT INTO whitelist
-		VALUES ('%s', '%s', %i)
-		]]):format(name_or_ip, source, ts)
+			INSERT INTO whitelist
+			VALUES ('%s', '%s', %i)
+	]]):format(name_or_ip, source, ts)
 	db_exec(stmt)
 end
 
@@ -364,9 +364,9 @@ local function ban_player(name, source, reason, expires)
 	-- id,name,source,created,reason,expires,u_source,u_reason,
 	-- u_date,active,last_pos
 	stmt = ([[
-			INSERT INTO bans
-			VALUES ('%s','%s','%s','%s','%s','%s','','','','true','%s')
-			]]):format(id, name, source, ts, reason, expires, last_pos)
+		INSERT INTO bans
+		VALUES ('%s','%s','%s','%s','%s','%s','','','','true','%s')
+	]]):format(id, name, source, ts, reason, expires, last_pos)
 	db_exec(stmt)
 
 	local msg_k, msg_l
@@ -416,16 +416,16 @@ local function update_login(player_name)
 	local ts = os.time()
 	local stmt = ([[
 			UPDATE players SET ban = '%s' WHERE id = '%s'
-			]]):format(false, id)
+	]]):format(false, id)
 	db_exec(stmt)
 	stmt = ([[
-			UPDATE bans SET
+		UPDATE bans SET
 			active = '%s',
 			u_source = '%s',
 			u_reason = '%s',
 			u_date = '%i'
-			WHERE id = '%i' AND name = '%s'
-		]]):format(false, source, reason, ts, id, name)
+		WHERE id = '%i' AND name = '%s'
+	]]):format(false, source, reason, ts, id, name)
 	db_exec(stmt)
 	-- log event
 	minetest.log("action",
@@ -441,14 +441,14 @@ end
 local function del_ban_record(name)
 	local stmt = ([[
 		DELETE FROM bans WHERE name = '%s'
-		]]):format(name)
+	]]):format(name)
 	db_exec(stmt)
 	end
 
-	local function del_whitelist(name_or_ip)
+local function del_whitelist(name_or_ip)
 	local stmt = ([[
 		DELETE FROM whitelist WHERE name = '%s'
-		]]):format(name_or_ip)
+	]]):format(name_or_ip)
 	db_exec(stmt)
 end
 --[[
