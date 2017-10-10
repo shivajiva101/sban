@@ -25,6 +25,7 @@ local display_max = minetest.setting_get("sban.display_max") or 10
 local t_units = {
 	s = 1, m = 60, h = 3600,
 	d = 86400, w = 604800, M = 2592000, y = 31104000,
+	D = 86400, W = 604800, Y = 31104000,
 	[""] = 1,
 }
 
