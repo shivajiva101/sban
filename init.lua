@@ -19,7 +19,7 @@ minetest.register_privilege("ban_admin", "Player bans admin")
 
 local db_version = "0.1"
 local db = _sql.open(WP.."/sban.sqlite") -- connection
-local expiry = minetest.setting_get("sban.ban_max") or {}
+local expiry = minetest.setting_get("sban.ban_max")
 local owner = minetest.setting_get("name")
 local display_max = minetest.setting_get("sban.display_max") or 10
 local t_units = {
@@ -774,17 +774,16 @@ minetest.override_chatcommand("ban", {
 			return true, ("%s is already banned!"):format(player_name)
 		end
 		-- limit ban?
-		if type(expiry) ~= "table" then
-			expiry = parse_time(expiry) + os.time()
-		else
-			expiry = ''
+		local expires = ''
+		if expiry ~= nil then
+			expires = parse_time(expiry) + os.time()
 		end
 		-- handle known/unknown players dependant on privs
 		local query = find_records(player_name)
 		if #query > 0 then
 			-- existing player
 			-- Params: name, source, reason, expires
-			ban_player(player_name, name, reason, expiry)
+			ban_player(player_name, name, reason, expires)
 			return true, ("Banned %s."):format(player_name)
 		else
 			local privs = minetest.get_player_privs(name)
@@ -794,7 +793,7 @@ minetest.override_chatcommand("ban", {
 			end
 			-- create entry before ban
 			create_entry(player_name, "0.0.0.0") -- arbritary ip
-			ban_player(player_name, name, reason, expiry)
+			ban_player(player_name, name, reason, expires)
 			return true, ("Banned nonexistent player %s."):format(player_name)
 		end
 	end
