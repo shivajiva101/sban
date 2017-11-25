@@ -385,7 +385,7 @@ local function ban_player(name, source, reason, expires)
 	end
 	minetest.log("action", msg_l)
 	-- kick all names associated with the player
-	local records = find_records(name)
+	local records = find_records_by_id(id)
 	for i, v in ipairs(records) do
 		minetest.kick_player(v.name, msg_k)
 	end
