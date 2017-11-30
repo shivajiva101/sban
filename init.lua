@@ -1101,10 +1101,9 @@ minetest.register_on_prejoinplayer(function(name, ip)
 	-- Attempt to retieve id
 	local id = get_id(name) or get_id(ip)
 	if id == nil then return end -- no record
-	if not qbc(id) then return end -- not banned
+	if qbc(id) == 'false' then return end -- not banned
 	-- retrieve player record
-	local r = is_banned(name)
-	local data = r[#r] -- last entry
+	local data = is_banned(name)
 	local date
 	-- check for ban expiry
 	if type(data.expires) == "number" and data.expires ~= 0 then
