@@ -788,6 +788,114 @@ local function export_sql(filename)
 	save_sql("END;")
 end
 
+-- Export the database back to xban db format
+local function export_xban()
+	-- so long, thanks for trying it :P
+	local xport = {}
+	local data = {}
+	local DEF_DB_FILENAME = minetest.get_worldpath().."/xban.db"
+	local DB_FILENAME = minetest.setting_get("xban.db_filename")
+
+	if (not DB_FILENAME) or (DB_FILENAME == "") then
+		DB_FILENAME = DEF_DB_FILENAME
+	end
+
+	-- players
+	local q = [[SELECT * FROM players;]]
+	for row in db:nrows(q) do
+		local b = false
+		if row.ban == 'true' then b = true end
+		xport[row.id] = {
+			banned = b
+		}
+	end
+
+	-- playerdata
+	for i,v in ipairs(xport) do
+		local name, ip = {}, {}
+		xport[i].names = {}
+		q = ([[SELECT * FROM playerdata
+		WHERE id = '%i']]):format(i)
+		for row in db:nrows(q) do
+			if not name[row.name] then
+				name[row.name] = true
+			end
+			if not ip[row.ip] then
+				ip[row.ip] = true
+			end
+			xport[i].last_seen = row.last_login
+		end
+		for key,val in pairs(name) do
+			xport[i].names[key] = val
+		end
+		for key,val in pairs(ip) do
+			xport[i].names[key] = val
+		end
+	end
+
+	-- bans
+	for i,v in ipairs(xport) do
+		if xport[i].banned == true then
+			local t = {}
+			q = ([[SELECT * FROM bans WHERE id = '%i';]]):format(i)
+			for row in db:nrows(q) do
+				t[#t+1] = {
+					time = row.created,
+					source = row.source,
+					reason = row.reason
+				}
+				if row.active == 'true' then
+					xport[i].last_pos = minetest.string_to_pos(row.last_pos)
+				end
+			end
+			xport[i].record = t
+		end
+	end
+
+	local function repr(x)
+		if type(x) == "string" then
+			return ("%q"):format(x)
+		else
+			return tostring(x)
+		end
+	end
+
+	local function my_serialize_2(t, level)
+		level = level or 0
+		local lines = { }
+		local indent = ("\t"):rep(level)
+		for k, v in pairs(t) do
+			local typ = type(v)
+			if typ == "table" then
+				table.insert(lines,
+				  indent..("[%s] = {\n"):format(repr(k))
+				  ..my_serialize_2(v, level + 1).."\n"
+				  ..indent.."},")
+			else
+				table.insert(lines,
+				  indent..("[%s] = %s,"):format(repr(k), repr(v)))
+			end
+		end
+		return table.concat(lines, "\n")
+	end
+
+	local function this_serialize(t)
+		return "return {\n"..my_serialize_2(t, 1).."\n}"
+	end
+
+	local f, e = io.open(DB_FILENAME, "wt")
+	xport.timestamp = os.time()
+	if f then
+		local ok, err = f:write(this_serialize(xport))
+		if not ok then
+			WARNING("Unable to save database: %s", err)
+		end
+	else
+		WARNING("Unable to save database: %s", e)
+	end
+	if f then f:close() end
+end
+
 --[[
 ###########################
 ###  Register Commands  ###
@@ -864,6 +972,15 @@ minetest.register_chatcommand("ban_dbe", {
 		del_sql()
 		export_sql(filename)
 		return true, "xban2 dumped to xban.sql file!"
+	end
+})
+
+minetest.register_chatcommand("ban_dbx", {
+	description = "export db to xban2 format",
+	privs = {server = true},
+	func = function(name)
+		export_xban()
+		return true, "dumped db to xban2 file!"
 	end
 })
 
