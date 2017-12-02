@@ -130,7 +130,7 @@ end
 
 local function is_banned(name_or_ip)
 		-- initialise
-	local r,q = {}
+	local q
 
 	if name_or_ip:find("%.") then
 		q = ([[
@@ -163,11 +163,10 @@ local function is_banned(name_or_ip)
 				bans.active = 'true' LIMIT 1;
 				]]):format(name_or_ip)
 	end
-	-- fill return table
+	-- return record
 	for row in db:nrows(q) do
-		r[#r + 1] = row
+		return row
 	end
-	return r
 end
 
 local function find_ban(id)
