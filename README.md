@@ -156,6 +156,14 @@ from the sqlite prompt using:
 
 The time of the import operation is dependant on the size of the .sql file.
 
+#### ban_dbx
+
+Dumps the database to xban2 file format. 
+
+```Usage: /ban_dbx```
+
+Do this before enabling xban2 mod otherwise it will be overwritten by the currently loaded data.
+
 #### CONFIG
 
 You can add these optional settings to minetest.conf to adjust the sban mod's
