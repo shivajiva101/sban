@@ -394,7 +394,7 @@ local function ban_player(name, source, reason, expires)
 	
 	-- cache the ban
 	local t = {
-		id = id
+		id = id,
 		reason = reason,
 		expires = expires
 	}
