@@ -1485,8 +1485,8 @@ minetest.override_chatcommand("unban", {
 	end,
 })
 
-minetest.register_chatcommand("bg", {
-	description = "Launch the GUI",
+minetest.register_chatcommand("bang", {
+	description = "Launch sban gui",
 	privs = {ban = true},
 	func = function(name)
 		state[name] = nil
