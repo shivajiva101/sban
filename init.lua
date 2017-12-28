@@ -3,6 +3,7 @@
 
 local WP = minetest.get_worldpath()
 local WL
+local hotlist
 local ie = minetest.request_insecure_environment()
 
 if not ie then
@@ -919,6 +920,253 @@ local function export_xban()
 	if f then f:close() end
 end
 
+local function hotlistp(name)
+
+	for i,v in ipairs(hotlist) do
+		if v == name then return end
+	end
+
+	table.insert(hotlist, name)
+
+	if #hotlist > 10 then
+		table.remove(hotlist, 1)
+	end
+end
+
+
+--[[
+###########
+##  GUI  ##
+###########
+]]
+
+local state = {}
+local FORMNAME = "sban:main"
+
+local function get_state(name)
+
+	local s = state[name]
+
+	if not s then
+		s = {
+			list = {},
+			index = -1,
+			info = "Select an entry from the list\n or use search",
+			banned = false,
+			bans = nil,
+			multi = false,
+			page = 1,
+			flag = false
+		}
+		state[name] = s
+	end
+
+	return s
+end
+
+local function create_info(entry)
+
+	if not entry then
+		return "something went wrong!\n Please reselct the entry."
+	end
+
+	local str = "Banned by: "..entry.source.."\n"
+		.."Active: "..entry.active.."\n"
+		.."Date: "..hrdf(entry.created).."\n"
+
+	if entry.expires ~= '' then
+		str = str.."Expires: "..hrdf(entry.expires).."\n"
+	end
+
+	str = str .."Reason: "
+	-- Word wrap
+	local words = entry.reason:split(" ")
+	local l,ctr = 40,8 -- character limit
+	for i,word in ipairs(words) do
+		local wl = word:len()
+		if ctr + wl < l then
+			str = str..word.." "
+			ctr = ctr + (wl + 1)
+		else
+			str = str.."\n"..word.." "
+			ctr = wl + 1
+		end
+	end
+
+	if entry.active == "false" then
+		str = str.."\nUnbanned by: "..entry.u_source.."\n"
+		.."Reason: "..entry.u_reason.."\n"
+		.."Date: "..hrdf(entry.u_date).."\n"
+	end
+
+	return str
+end
+
+local function getformspec(name)
+
+	local fs = state[name]
+	local f = ""
+	local list = fs.list
+
+	f = "size[8,6.6]"
+	..default.gui_bg
+	..default.gui_bg_img
+	.."field[0.3,0.4;4.5,0.5;search;;]"
+	.."field_close_on_enter[search;false]"
+	.."button[4.5,0.1;1.5,0.5;find;Find]"
+	.."textlist[0,0.9;2.4,3.6;plist;"
+
+	for i,v in ipairs(list) do
+		f = f..v..","
+	end
+
+	f = f:sub(1, f:len() - 1)
+	f = f..";"..fs.index.."]"
+	.."field[0.3,6.5;4.5,0.5;reason;Reason:;]"
+	.."field_close_on_enter[reason;false]"
+
+	if fs.multi == true then
+		f = f.."image_button[6,0.1;0.5,0.5;ui_left_icon.png;left;]"
+		.."image_button[7,0.1;0.5,0.5;ui_right_icon.png;right;]"
+		if fs.page > 9 then
+			f = f.."label[6.50,0.09;"..fs.page.."]"
+		else
+			f = f.."label[6.55,0.09;"..fs.page.."]"
+		end
+	end
+
+	f = f.."label[2.6,0.9;"..fs.info.."]"
+
+	if fs.banned then
+		f = f.."button[4.5,6.2;1.5,0.5;unban;Unban]"
+	else
+		f = f
+		.."field[0.3,5.5;2.6,0.3;duration;Duration:;1M]"
+		.."field_close_on_enter[duration;false]"
+		.."button[4.5,6.2;1.5,0.5;ban;Ban]"
+		.."button[6,6.2;2,0.5;tban;Temp Ban]"
+	end
+
+	return f
+end
+
+local function update_state(name, selected)
+
+	local fs = get_state(name)
+	local id = get_id(selected)
+
+	fs.bans = list_bans(id)
+
+	local info = "Ban records: "..#fs.bans.."\n"
+
+	fs.banned = qbc(id)
+	fs.multi = false
+
+	if #fs.bans == 0 then
+		info = info.."Player has no ban records!"
+	else
+		if not fs.flag then
+			fs.page = #fs.bans
+			fs.flag = true
+		end
+		if fs.page > #fs.bans then fs.page = #fs.bans end
+		info = info..create_info(fs.bans[fs.page])
+	end
+
+	fs.info = info
+	if #fs.bans > 1 then
+		fs.multi = true
+	end
+end
+
+minetest.register_on_player_receive_fields(function(player, formname, fields)
+
+	if formname ~= FORMNAME then return end
+
+	local name = player:get_player_name()
+	local privs = minetest.get_player_privs(name)
+	local fs = get_state(name)
+
+	if not privs.ban then
+		minetest.log("warning",
+				"[sban] Received fields from unauthorized user: "..name)
+		return
+	end
+
+	if fields.find then
+
+		if fields.search:len() > 2 then
+			fs.list = get_names(ESC(fields.search))
+		else
+			fs.list = hotlist
+		end
+
+		fs.info = "Select an entry to see the details..."
+		fs.index = -1
+		minetest.show_formspec(name, FORMNAME, getformspec(name))
+
+	elseif fields.plist then
+
+		local t = minetest.explode_textlist_event(fields.plist)
+
+		if (t.type == "CHG") or (t.type == "DCL") then
+
+			fs.index = t.index
+			fs.flag = false -- reset
+			update_state(name, fs.list[t.index])
+			minetest.show_formspec(name, FORMNAME, getformspec(name))
+		end
+
+	elseif fields.left or fields.right then
+
+		if fields.left then
+			if fs.page > 1 then fs.page = fs.page - 1 end
+		else
+			if fs.page < #fs.bans then fs.page = fs.page + 1 end
+		end
+		update_state(name, fs.list[fs.index])
+		minetest.show_formspec(name, FORMNAME, getformspec(name))
+
+	elseif fields.ban or fields.unban or fields.tban then
+
+		local selected = fs.list[fs.index]
+		local id = get_id(selected)
+
+		if fields.reason ~= "" then
+			if fields.ban then
+				if selected == owner then
+					fs.info = "you do not have permission to do that!"
+				else
+					ban_player(selected, name, ESC(fields.reason), '')
+					local q = qbc(id)
+					if not (q and active_ban_record(id)) then
+						fs.info = "Warning: failed to ban "..selected
+					end
+				end
+			elseif fields.unban then
+				local id = get_id(selected)
+				unban_player(id, name, ESC(fields.reason))
+				fs.bans = list_bans(id)
+			elseif fields.tban then
+				if selected == owner then
+					fs.info = "you do not have permission to do that!"
+				else
+					local  t = parse_time(ESC(fields.duration)) + os.time()
+					ban_player(selected, name, ESC(fields.reason), t)
+					if not (q and active_ban_record(id)) then
+						fs.info = "Warning: failed to ban "..selected
+					end
+				end
+			end
+			fs.flag = false -- reset
+			update_state(name, selected)
+		else
+			fs.info = "You must supply a reason!"
+		end
+		minetest.show_formspec(name, FORMNAME, getformspec(name))
+	end
+end)
+
 --[[
 ###########################
 ###  Register Commands  ###
@@ -1220,6 +1468,17 @@ minetest.override_chatcommand("unban", {
 	end,
 })
 
+minetest.register_chatcommand("bang", {
+	description = "Launch the sban GUI",
+	privs = {ban = true},
+	func = function(name)
+		state[name] = nil
+		local fs = get_state(name)
+		fs.list = hotlist
+		minetest.show_formspec(name, FORMNAME, getformspec(name))
+	end
+})
+
 --[[
 ########################
 ###  Register Hooks  ###
@@ -1276,6 +1535,9 @@ minetest.register_on_joinplayer(function(player)
 	if not ip then return end
 	local record = find_records(name)
 	local ip_record
+
+	hotlistp(name)
+
 	-- check for player name entry
 	if #record == 0 then
 		-- no records, check for ip
