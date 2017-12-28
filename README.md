@@ -37,6 +37,12 @@ The mod provides the following chat console commands. These commands require
 the ban privilege. The ban_admin and server privileges extend the functionality
 of some commands.
 
+#### bang
+
+Launches the GUI. Comprehensive management of bans via a user interface for convenience.
+
+``` Usage: /bang ```
+
 #### ban
 
 Bans a player permanently.
