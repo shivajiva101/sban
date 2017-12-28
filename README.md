@@ -40,6 +40,9 @@ of some commands.
 #### bang
 
 Launches the GUI. Comprehensive management of bans via a user interface for convenience.
+On launch the interface shows a list containing the last 10 players to join. Use search
+to find a player if they are not in the list. Multiple records are shown if available, by
+using the arrows.
 
 ``` Usage: /bang ```
 
@@ -164,7 +167,8 @@ The time of the import operation is dependant on the size of the .sql file.
 
 #### ban_dbx
 
-Dumps the database to xban2 file format. 
+Dumps the database back to xban2 file format. Use it before you uninstall this mod
+if you intend using xban2 and wish to retain the data.
 
 ```Usage: /ban_dbx```
 
@@ -201,5 +205,9 @@ expiry dates.
 
 #### CREDITS
 
-Shara for suggesting improvements and providing a remote server test environment
+Thanks to:
+
+Shara for suggesting improvements and editing documentation.
+rubenwardy for suggesting improvements to the inteface layout.
+sofar for requesting a gui and suggesting the hotlist concept.
 
