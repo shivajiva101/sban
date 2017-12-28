@@ -474,7 +474,7 @@ local function update_login(player_name)
 	db_exec(stmt)
 	end
 
-local function unban_player(id, source, reason)
+local function unban_player(id, source, reason, name)
 	local ts = os.time()
 	local stmt = ([[
 			UPDATE players SET ban = 'false' WHERE id = '%i'
@@ -1151,7 +1151,7 @@ minetest.register_on_player_receive_fields(function(player, formname, fields)
 				end
 			elseif fields.unban then
 				local id = get_id(selected)
-				unban_player(id, name, ESC(fields.reason))
+				unban_player(id, name, ESC(fields.reason), selected)
 				fs.bans = list_bans(id)
 			elseif fields.tban then
 				if selected == owner then
@@ -1474,7 +1474,7 @@ minetest.override_chatcommand("unban", {
 		-- look for the active ban
 		for i, v in ipairs(bans) do
 			if v.active then
-				unban_player(id, name, reason)
+				unban_player(id, name, reason, player_name)
 				q = qbc(id)
 				if not q then
 					return true, ("Unbanned %s."):format(v.name)
