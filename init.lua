@@ -123,8 +123,22 @@ local function qbc(id)
 		FROM players
 		WHERE id = '%s'
 	]]):format(id)
+	local result = false
 	for row in db:nrows(q) do
-		return row.ban
+		if row.ban == 'true' then result = true end
+	end
+	return result
+end
+
+local function active_ban_record(id)
+	local q = ([[
+		SELECT active
+		FROM bans
+		WHERE id = '%i' AND
+		active = 'true' LIMIT 1;
+	]])
+	for row in db:nrows(q) do
+		return true
 	end
 end
 
@@ -453,7 +467,7 @@ local function update_login(player_name)
 	db_exec(stmt)
 	end
 
-	local function unban_player(id, name, source, reason)
+local function unban_player(id, name, source, reason)
 	local ts = os.time()
 	local stmt = ([[
 			UPDATE players SET ban = '%s' WHERE id = '%i'
@@ -461,16 +475,23 @@ local function update_login(player_name)
 	db_exec(stmt)
 	stmt = ([[
 		UPDATE bans SET
-			active = '%s',
+			active = 'false',
 			u_source = '%s',
 			u_reason = '%s',
 			u_date = '%i'
-		WHERE id = '%i' AND name = '%s'
-	]]):format('false', source, reason, ts, id, name)
+		WHERE id = '%i' AND active = 'true'
+	]]):format(source, reason, ts, id)
 	db_exec(stmt)
 	-- log event
 	minetest.log("action",
 	("[sban] %s unbanned by %s reason: %s"):format(name, source, reason))
+end
+
+local function reset_orphan_record(id)
+	local stmt = ([[
+	UPDATE players SET ban = 'false' WHERE id = '%s';
+	]]):format(id)
+	db_exec(stmt)
 end
 
 --[[
@@ -919,7 +940,7 @@ minetest.override_chatcommand("ban", {
 		-- banned player?
 		local id = get_id(player_name)
 		local q = qbc(id)
-		if q == 'true' then
+		if q then
 			return true, ("%s is already banned!"):format(player_name)
 		end
 		-- limit ban?
@@ -934,7 +955,7 @@ minetest.override_chatcommand("ban", {
 			-- Params: name, source, reason, expires
 			ban_player(player_name, name, reason, expires)
 			q = qbc(id)
-			if q == 'true' then
+			if q then
 				return true, ("Banned %s."):format(player_name)
 			else
 				minetest.log("error", "Failed to ban "..player_name)
@@ -950,7 +971,7 @@ minetest.override_chatcommand("ban", {
 			create_entry(player_name, "0.0.0.0") -- arbritary ip
 			ban_player(player_name, name, reason, expires)
 			q = qbc(id)
-			if q == 'true' then
+			if q then
 				return true, ("Banned nonexistent player %s."):format(player_name)
 			else
 				minetest.log("error", "Failed to ban "..player_name)
@@ -1122,7 +1143,7 @@ minetest.register_chatcommand("tempban", {
 		-- is player already banned?
 		local id = get_id(player_name)
 		local q = qbc(id)
-		if q == 'true' then
+		if q then
 			return true, ("%s is already banned!"):format(player_name)
 		end
 		time = parse_time(time)
@@ -1135,7 +1156,7 @@ minetest.register_chatcommand("tempban", {
 			-- existing player
 			ban_player(player_name, name, reason, expires)
 			q = qbc(id)
-			if q == 'true' then
+			if q then
 				return true, ("Banned %s until %s."):format(
 				player_name, os.date("%c", expires))
 			else
@@ -1152,7 +1173,7 @@ minetest.register_chatcommand("tempban", {
 			create_entry(player_name, "0.0.0.0")
 			ban_player(player_name, name, reason, expires)
 			q = qbc(id)
-			if q == 'true' then
+			if q then
 				return true, ("Banned nonexistent player %s until %s."
 				):format(player_name, os.date("%c", expires))
 			else
@@ -1175,7 +1196,7 @@ minetest.override_chatcommand("unban", {
 		-- look for records by id
 		local id = get_id(player_name)
 		local q = qbc(id)
-		if q == 'false' then
+		if not q then
 			return false, ("No active ban record for "..player_name)
 		end
 		local bans = find_ban(id) -- get ban records
@@ -1184,9 +1205,9 @@ minetest.override_chatcommand("unban", {
 			if v.active then
 				unban_player(id, v.name, name, reason)
 				q = qbc(id)
-				if q == 'false' then
+				if not q then
 					return true, ("Unbanned %s."):format(v.name)
-				elseif q == 'true' then
+				elseif q then
 					minetest.log("error", "[sban] Failed to unban "..
 					player_name)
 					return false
@@ -1217,7 +1238,18 @@ minetest.register_on_prejoinplayer(function(name, ip)
 	-- Attempt to retieve id
 	local id = get_id(name) or get_id(ip)
 	if id == nil then return end -- no record
-	if qbc(id) == 'false' then return end -- not banned
+	if qbc(id) then
+		-- Check 
+		if not active_ban_record(id) then
+			reset_orphan_record(id)
+			minetest.log("info",
+			"[sban] cleared orphaned ban in players table for "
+			..name)
+			return
+		end
+	else
+		return -- not banned
+	end
 	-- retrieve player record
 	local data = is_banned(name) or is_banned(ip)
 	local date
