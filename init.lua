@@ -136,7 +136,7 @@ local function active_ban_record(id)
 		FROM bans
 		WHERE id = '%i' AND
 		active = 'true' LIMIT 1;
-	]])
+	]]):format(id)
 	for row in db:nrows(q) do
 		return true
 	end
