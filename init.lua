@@ -1531,7 +1531,7 @@ minetest.register_on_prejoinplayer(function(name, ip)
 			reset_orphan_record(id)
 			minetest.log("info",
 			"[sban] cleared orphaned ban in players table for "
-			..player_name)
+			..name)
 		end
 	else
 		return -- not banned
