@@ -1016,14 +1016,16 @@ local function getformspec(name)
 	.."field[0.3,0.4;4.5,0.5;search;;]"
 	.."field_close_on_enter[search;false]"
 	.."button[4.5,0.1;1.5,0.5;find;Find]"
-	.."textlist[0,0.9;2.4,3.6;plist;"
+	if #fs.list > 0 then
+		f = f.."textlist[0,0.9;2.4,3.6;plist;"
 
-	for i,v in ipairs(list) do
-		f = f..v..","
+		for i,v in ipairs(list) do
+			f = f..v..","
+		end
+
+		f = f:sub(1, f:len() - 1)
+		f = f..";"..fs.index.."]"
 	end
-
-	f = f:sub(1, f:len() - 1)
-	f = f..";"..fs.index.."]"
 	.."field[0.3,6.5;4.5,0.5;reason;Reason:;]"
 	.."field_close_on_enter[reason;false]"
 
