@@ -956,6 +956,7 @@ local function get_state(name)
 	if not s then
 		s = {
 			list = {},
+			hlist = {},
 			index = -1,
 			info = "Select an entry from the list\n or use search",
 			banned = false,
@@ -1104,7 +1105,7 @@ minetest.register_on_player_receive_fields(function(player, formname, fields)
 		if fields.search:len() > 2 then
 			fs.list = get_names(ESC(fields.search))
 		else
-			fs.list = hotlist
+			fs.list = fs.hlist
 		end
 
 		fs.info = "Select an entry to see the details..."
@@ -1496,6 +1497,9 @@ minetest.register_chatcommand("bang", {
 		state[name] = nil
 		local fs = get_state(name)
 		fs.list = hotlist
+		for i,v in ipairs(fs.list) do
+			fs.hlist[i] = v
+		end
 		minetest.show_formspec(name, FORMNAME, getformspec(name))
 	end
 })
