@@ -1213,7 +1213,7 @@ minetest.override_chatcommand("ban", {
 			expires = parse_time(expiry) + os.time()
 		end
 		-- handle known/unknown players dependant on privs
-		--local r = find_records(player_name)
+		local q = ""
 		if id then
 			-- existing player
 			-- Params: name, source, reason, expires
@@ -1532,6 +1532,7 @@ minetest.register_on_prejoinplayer(function(name, ip)
 			minetest.log("info",
 			"[sban] cleared orphaned ban in players table for "
 			..name)
+			return
 		end
 	else
 		return -- not banned
