@@ -1200,7 +1200,6 @@ minetest.override_chatcommand("ban", {
 		end
 		-- banned player?
 		local id = get_id(player_name)
-
 		if qbc(id) then
 			if active_ban_record(id) then
 				return true, ("%s is already banned!"):format(player_name)
@@ -1213,7 +1212,6 @@ minetest.override_chatcommand("ban", {
 		end
 		-- limit ban?
 		local expires = ''
-
 		if expiry ~= nil then
 			expires = parse_time(expiry) + os.time()
 		end
