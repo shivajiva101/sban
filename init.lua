@@ -1026,7 +1026,7 @@ local function getformspec(name)
 		f = f:sub(1, f:len() - 1)
 		f = f..";"..fs.index.."]"
 	end
-	.."field[0.3,6.5;4.5,0.5;reason;Reason:;]"
+	f = f.."field[0.3,6.5;4.5,0.5;reason;Reason:;]"
 	.."field_close_on_enter[reason;false]"
 
 	if fs.multi == true then
