@@ -1012,7 +1012,6 @@ local function getformspec(name)
 	local list = fs.list
 
 	f = "size[8,6.6]"
-	..default.gui_bg
 	..default.gui_bg_img
 	.."field[0.3,0.4;4.5,0.5;search;;]"
 	.."field_close_on_enter[search;false]"
