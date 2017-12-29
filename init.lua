@@ -1108,8 +1108,11 @@ minetest.register_on_player_receive_fields(function(player, formname, fields)
 		else
 			fs.list = fs.hlist
 		end
-
-		fs.info = "Select an entry to see the details..."
+		local str = "No record found!"
+		if #fs.list > 0 then
+			str = "Select an entry to see the details..."
+		end
+		fs.info = str
 		fs.index = -1
 		minetest.show_formspec(name, FORMNAME, getformspec(name))
 
