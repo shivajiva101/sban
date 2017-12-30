@@ -207,7 +207,7 @@ expiry dates.
 
 Thanks to:
 
-Shara for suggesting improvements and editing documentation.
-rubenwardy for suggesting improvements to the inteface layout.
-sofar for requesting a gui and suggesting the hotlist concept.
+Shara for suggesting improvements and editing documentation.    
+rubenwardy for suggesting improvements to the inteface layout.    
+sofar for requesting a gui and suggesting the hotlist concept.    
 
