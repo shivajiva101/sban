@@ -1546,7 +1546,8 @@ minetest.register_on_prejoinplayer(function(name, ip)
 	local data = is_banned(name)
 	local date
 	-- check for ban expiry
-	if type(data.expires) == "number" and data.expires ~= 0 then
+	if data and 
+	type(data.expires) == "number" and data.expires ~= 0 then
 		--temp ban
 		if os.time() > data.expires then
 			-- clear temp ban
