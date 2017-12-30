@@ -23,6 +23,7 @@ local db_version = "0.1"
 local db = _sql.open(WP.."/sban.sqlite") -- connection
 local expiry = minetest.setting_get("sban.ban_max")
 local owner = minetest.setting_get("name")
+local def_duration = minetest.setting_get("sban.fs_duration") or "1w"
 local display_max = minetest.setting_get("sban.display_max") or 10
 local t_units = {
 	s = 1, m = 60, h = 3600,
@@ -110,7 +111,6 @@ end
 
 local function next_id()
 	local q = [[SELECT seq FROM sqlite_sequence WHERE name= "players"]]
-
 	for row in db:nrows(q) do
 		return row.seq + 1 -- next id
 	end
@@ -1045,7 +1045,7 @@ local function getformspec(name)
 		f = f.."button[4.5,6.2;1.5,0.5;unban;Unban]"
 	else
 		f = f
-		.."field[0.3,5.5;2.6,0.3;duration;Duration:;1M]"
+		.."field[0.3,5.5;2.6,0.3;duration;Duration:;"..def_duration.."]"
 		.."field_close_on_enter[duration;false]"
 		.."button[4.5,6.2;1.5,0.5;ban;Ban]"
 		.."button[6,6.2;2,0.5;tban;Temp Ban]"
