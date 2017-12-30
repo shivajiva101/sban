@@ -1520,7 +1520,7 @@ minetest.register_on_prejoinplayer(function(name, ip)
 		return
 	end
 	-- Attempt to retieve id
-	local id = get_id(name)
+	local id = get_id(name) or get_id(ip)
 
 	if id == nil then return end -- no record
 	if qbc(id) then
