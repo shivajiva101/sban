@@ -1543,7 +1543,7 @@ minetest.register_on_prejoinplayer(function(name, ip)
 	end
 
 	-- Retrieve player record
-	local data = is_banned(name)
+	local data = is_banned(name) or is_banned(ip)
 	local date
 	-- check for ban expiry
 	if data and 
