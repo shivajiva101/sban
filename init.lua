@@ -141,6 +141,27 @@ local function active_ban_record(id)
 	end
 end
 
+local function check_ban(id)
+	local q = ([[
+		SELECT  players.id,
+			playerdata.ip,
+			bans.reason,
+			bans.expires
+		FROM    players
+		INNER JOIN
+			bans ON players.id = bans.id
+		INNER JOIN
+			playerdata ON playerdata.id = players.id
+		WHERE   players.ban = 'true' AND
+			playerdata.id = '%i' AND
+			bans.active = 'true' LIMIT 1;
+	]]):format(id)
+	-- fill return table
+	for row in db:nrows(q) do
+		return row
+	end
+end
+
 local function is_banned(name_or_ip)
 	local q
 	if name_or_ip:find("%.") then
@@ -1537,7 +1558,7 @@ minetest.register_on_prejoinplayer(function(name, ip)
 	end
 
 	-- Retrieve player record
-	local data = is_banned(name) or is_banned(ip)
+	local data = check_ban(id)
 	local date
 	-- check for ban expiry
 	if data and 
