@@ -102,7 +102,8 @@ local function get_id(name_or_ip)
 			WHERE playerdata.name = '%s' LIMIT 1;]]
 		):format(name_or_ip)
 	end
-	for row in db:nrows(q) do
+	local row = next(db:nrows(q))
+	if row then
 		return row.id
 	end
 end
@@ -111,7 +112,8 @@ local function next_id()
 	-- construct
 	local q = [[SELECT seq FROM sqlite_sequence WHERE name= "players"]]
 	-- returns an integer for last id
-	for row in db:nrows(q) do
+	local row = next(db:nrows(q))
+	if row then
 		return row.seq + 1 -- next id
 	end
 end
@@ -137,9 +139,8 @@ local function active_ban_record(id)
 		WHERE id = '%i' AND
 		active = 'true' LIMIT 1;
 	]]):format(id)
-	for row in db:nrows(q) do
-		return true
-	end
+	local row = next(db:nrows(q))
+	return row ~= nil
 end
 
 local function is_banned(name_or_ip)
@@ -178,9 +179,8 @@ local function is_banned(name_or_ip)
 				]]):format(name_or_ip)
 	end
 	-- return record
-	for row in db:nrows(q) do
-		return row
-	end
+	local row = next(db.nrows(q))
+	return row
 end
 
 local function find_ban(id)
@@ -283,7 +283,8 @@ end
 
 local function get_version()
 	local query = "SELECT * FROM version"
-	for row in db:nrows(query) do
+	local row = db:nrows(query)
+	if row then
 		return row.rev
 	end
 end
@@ -606,7 +607,8 @@ local function import_xban(name, file_name)
 			local chk = true
 			for _, v in ipairs(names) do
 				q = ([[SELECT * FROM playerdata WHERE name = '%s']]):format(v)
-					for row in db:nrows(q) do
+					local row = next(db.nrows(q))
+					if row then
 						chk = false
 						break
 					end
@@ -693,9 +695,9 @@ local function import_ipban(source)
 			local chk = true
 			local q = ([[SELECT * FROM
 				playerdata WHERE name = '%s']]):format(name)
-			for row in db:nrows(q) do
+			local row = next(db:nrows(q))
+			if row then
 				chk = false
-				break
 			end
 			if chk then
 				-- create player entry
