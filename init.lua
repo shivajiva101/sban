@@ -579,7 +579,9 @@ local function import_xban(name, file_name)
 		return t, err
 	end
 	local id = next_id()
-	print("processing "..#t.." records")
+
+	minetest.log("action", "processing "..#t.." records")
+
 	-- iterate the xban2 data
 	for i, e in ipairs(t) do
 		-- only process banned entries
@@ -907,10 +909,10 @@ local function export_xban()
 	if f then
 		local ok, err = f:write(this_serialize(xport))
 		if not ok then
-			WARNING("Unable to save database: %s", err)
+			minetest.log("error", "Unable to save database: %s", err)
 		end
 	else
-		WARNING("Unable to save database: %s", e)
+		minetest.log("error", "Unable to save database: %s", e)
 	end
 	if f then f:close() end
 end
