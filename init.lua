@@ -2,7 +2,7 @@
 -- designed and coded by shivajiva101@hotmail.com
 
 local WP = minetest.get_worldpath()
-local WL = {}
+local WL
 local ie = minetest.request_insecure_environment()
 
 if not ie then
@@ -84,7 +84,7 @@ db_exec(createDb)
 
 local function get_id(name_or_ip)
 	local q
-	
+
 	if name_or_ip:find("%.") then
 		q = ([[
 			SELECT players.id
@@ -573,10 +573,10 @@ WL = get_whitelist()
 
 local function import_xban(name, file_name)
 
-	local t, e = load_xban(file_name)
+	local t, err = load_xban(file_name)
 	-- exit with error message
 	if not t then
-		return t, e
+		return t, err
 	end
 	local id = next_id()
 	print("processing "..#t.." records")
@@ -590,7 +590,7 @@ local function import_xban(name, file_name)
 			local last_seen = e.last_seen
 			local last_pos = e.last_pos or ""
 			--local id = nil
-			local q = ""
+			local q
 			-- each entry in xban db contains a names field, both IP and names
 			-- are stored in this field, split into 2 tables
 			for k, v in pairs(e.names) do
@@ -602,7 +602,7 @@ local function import_xban(name, file_name)
 			end
 			-- check for existing entry by name
 			local chk = true
-			for i, v in ipairs(names) do
+			for _, v in ipairs(names) do
 				q = ([[SELECT * FROM playerdata WHERE name = '%s']]):format(v)
 					for row in db:nrows(q) do
 						chk = false
@@ -621,9 +621,9 @@ local function import_xban(name, file_name)
 				local ts = os.time()
 				if table.getn(names) > table.getn(ip) then
 					local tbl = table.getn(ip)
-					local idx = 0
-					for i,v in ipairs(names) do
-						idx = i
+					local idx
+					for ii, v in ipairs(names) do
+						idx = ii
 						if idx > tbl then idx = tbl end
 						-- id,name,ip,created,last_login
 						q = ([[
@@ -634,9 +634,9 @@ local function import_xban(name, file_name)
 					end
 				elseif table.getn(ip) > table.getn(names) then
 					local tbl = table.getn(names)
-					local idx = 0
-					for i, v in ipairs(ip) do
-						idx = i
+					local idx
+					for ii, v in ipairs(ip) do
+						idx = ii
 						if idx > tbl then idx = tbl end
 						-- id,name,ip,created,last_login
 						q = ([[
@@ -646,12 +646,12 @@ local function import_xban(name, file_name)
 						db_exec(q)
 					end
 				else
-					for i, v in ipairs(names) do
+					for ii, v in ipairs(names) do
 						-- id,name,ip,created,last_login
 						q = ([[
 						INSERT INTO playerdata
 						VALUES (%s,'%s','%s',%s,%s)
-						]]):format(id, v, ip[i], ts, last_seen)
+						]]):format(id, v, ip[ii], ts, last_seen)
 						db_exec(q)
 					end
 				end
@@ -659,10 +659,9 @@ local function import_xban(name, file_name)
 				-- u_date,active,last_pos
 				-- convert position to string
 				if last_pos.y then
-					last_pos = parse_pos(last_pos)
 					last_pos = minetest.pos_to_string(last_pos)
 				end
-				for i, v in ipairs(e.record) do
+				for _, v in ipairs(e.record) do
 					local expires = v.expires or ""
 					local reason = string.gsub(v.reason, "%'", "")
 					q = ([[
@@ -733,7 +732,7 @@ local function sql_string(id, entry)
 	-- case: more names than IP's uses the last entry for reamining names
 	if #names > #ip then
 		local t = #ip
-		local idx = 0
+		local idx
 		for i, v in ipairs(names) do
 			idx = i
 			if idx > t then idx = t end
@@ -744,7 +743,7 @@ local function sql_string(id, entry)
 		-- case: more ip's than names uses last entry for remaining ip's
 	elseif #ip > #names then
 		local t = #names
-		local idx = 0
+		local idx
 		for i, v in ipairs(ip) do
 			idx = i
 			if idx > t then idx = t end
@@ -813,7 +812,6 @@ end
 local function export_xban()
 	-- so long, thanks for trying it :P
 	local xport = {}
-	local data = {}
 	local DEF_DB_FILENAME = minetest.get_worldpath().."/xban.db"
 	local DB_FILENAME = minetest.setting_get("xban.db_filename")
 
@@ -1239,7 +1237,7 @@ minetest.register_on_prejoinplayer(function(name, ip)
 	local id = get_id(name) or get_id(ip)
 	if id == nil then return end -- no record
 	if qbc(id) then
-		-- Check 
+		-- Check
 		if not active_ban_record(id) then
 			reset_orphan_record(id)
 			minetest.log("info",
@@ -1273,7 +1271,7 @@ minetest.register_on_joinplayer(function(player)
 	local ip = minetest.get_player_ip(name)
 	if not ip then return end
 	local record = find_records(name)
-	local ip_record = {}
+	local ip_record
 	-- check for player name entry
 	if #record == 0 then
 		-- no records, check for ip
