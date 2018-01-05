@@ -1580,7 +1580,7 @@ minetest.register_on_prejoinplayer(function(name, ip)
 		-- temp ban
 		if os.time() > data.expires then
 			-- clear temp ban
-			unban_player(data.id, "sban", "ban expired")
+			unban_player(data.id, "sban", "ban expired", name)
 			return
 		end
 		date = hrdf(data.expires)
