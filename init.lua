@@ -1039,11 +1039,15 @@ end
 local function getformspec(name)
 
 	local fs = state[name]
-	local f = ""
+	local f
 	local list = fs.list
+	local bgimg = ""
+	if default and default.gui_bg_img then
+		bgimg = default.gui_bg_img
+	end
 
 	f = "size[8,6.6]"
-	..default.gui_bg_img
+	..bgimg
 	.."field[0.3,0.4;4.5,0.5;search;;]"
 	.."field_close_on_enter[search;false]"
 	.."button[4.5,0.1;1.5,0.5;find;Find]"
