@@ -3,7 +3,6 @@
 
 local WP = minetest.get_worldpath()
 local WL
-local hotlist
 local ie = minetest.request_insecure_environment()
 local ESC = minetest.formspec_escape
 local hotlist = {}
@@ -957,8 +956,7 @@ local function export_xban()
 end
 
 local function hotlistp(name)
-
-	for i,v in ipairs(hotlist) do
+	for _, v in ipairs(hotlist) do
 		if v == name then return end
 	end
 
@@ -1184,7 +1182,6 @@ minetest.register_on_player_receive_fields(function(player, formname, fields)
 					end
 				end
 			elseif fields.unban then
-				local id = get_id(selected)
 				unban_player(id, name, ESC(fields.reason), selected)
 				fs.bans = list_bans(id)
 			elseif fields.tban then
@@ -1193,6 +1190,7 @@ minetest.register_on_player_receive_fields(function(player, formname, fields)
 				else
 					local  t = parse_time(ESC(fields.duration)) + os.time()
 					ban_player(selected, name, ESC(fields.reason), t)
+					local q = qbc(id)
 					if not (q and active_ban_record(id)) then
 						fs.info = "Warning: failed to ban "..selected
 					end
@@ -1245,7 +1243,7 @@ minetest.override_chatcommand("ban", {
 			expires = parse_time(expiry) + os.time()
 		end
 		-- handle known/unknown players dependant on privs
-		local q = ""
+		local q
 		if id then
 			-- existing player
 			-- Params: name, source, reason, expires
@@ -1574,9 +1572,8 @@ minetest.register_on_prejoinplayer(function(name, ip)
 	local data = check_ban(id)
 	local date
 	-- check for ban expiry
-	if data and 
-	type(data.expires) == "number" and data.expires ~= 0 then
-		--temp ban
+	if data and type(data.expires) == "number" and data.expires ~= 0 then
+		-- temp ban
 		if os.time() > data.expires then
 			-- clear temp ban
 			unban_player(data.id, "sban", "ban expired")
