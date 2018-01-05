@@ -106,7 +106,8 @@ local function get_id(name_or_ip)
 			WHERE playerdata.name = '%s' LIMIT 1;]]
 		):format(name_or_ip)
 	end
-	local row = next(db:nrows(q))
+	local it, state = db:nrows(q)
+	local row = it(state)
 	if row then
 		return row.id
 	end
@@ -115,7 +116,8 @@ end
 local function next_id()
 	local q = [[SELECT seq FROM sqlite_sequence WHERE name= "players"]]
 	-- returns an integer for last id
-	local row = next(db:nrows(q))
+	local it, state = db:nrows(q)
+	local row = it(state)
 	if row then
 		return row.seq + 1 -- next id
 	end
@@ -141,7 +143,8 @@ local function active_ban_record(id)
 		WHERE id = '%i' AND
 		active = 'true' LIMIT 1;
 	]]):format(id)
-	local row = next(db:nrows(q))
+	local it, state = db:nrows(q)
+	local row = it(state)
 	return row ~= nil
 end
 
@@ -161,9 +164,9 @@ local function check_ban(id)
 			bans.active = 'true' LIMIT 1;
 	]]):format(id)
 	-- fill return table
-	for row in db:nrows(q) do
-		return row
-	end
+	local it, state = db:nrows(q)
+	local row = it(state)
+	return row
 end
 
 local function is_banned(name_or_ip)
@@ -200,7 +203,8 @@ local function is_banned(name_or_ip)
 		]]):format(name_or_ip)
 	end
 	-- return record
-	local row = next(db.nrows(q))
+	local it, state = db:nrows(q)
+	local row = it(state)
 	return row
 end
 
@@ -297,7 +301,8 @@ end
 
 local function get_version()
 	local query = "SELECT * FROM version"
-	local row = db:nrows(query)
+	local it, state = db:nrows(query)
+	local row = it(state)
 	if row then
 		return row.rev
 	end
@@ -636,7 +641,8 @@ local function import_xban(name, file_name)
 			local chk = true
 			for _, v in ipairs(names) do
 				q = ([[SELECT * FROM playerdata WHERE name = '%s']]):format(v)
-					local row = next(db.nrows(q))
+					local it, state = db:nrows(q)
+					local row = it(state)
 					if row then
 						chk = false
 						break
@@ -724,7 +730,8 @@ local function import_ipban(source)
 			local chk = true
 			local q = ([[SELECT * FROM
 				playerdata WHERE name = '%s']]):format(name)
-			local row = next(db:nrows(q))
+			local it, state = db:nrows(q)
+			local row = it(state)
 			if row then
 				chk = false
 			end
