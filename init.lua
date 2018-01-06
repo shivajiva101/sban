@@ -5,7 +5,7 @@ local WP = minetest.get_worldpath()
 local WL
 local ie = minetest.request_insecure_environment()
 local ESC = minetest.formspec_escape
-local hotlist = {}
+local hotlist
 
 if not ie then
 	error("insecure environment inaccessible"..
@@ -87,7 +87,6 @@ db_exec(createDb)
 
 local function get_id(name_or_ip)
 	local q
-
 	if name_or_ip:find("%.") then
 		q = ([[
 			SELECT players.id
@@ -640,12 +639,12 @@ local function import_xban(name, file_name)
 			local chk = true
 			for _, v in ipairs(names) do
 				q = ([[SELECT * FROM playerdata WHERE name = '%s']]):format(v)
-					local it, state = db:nrows(q)
-					local row = it(state)
-					if row then
-						chk = false
-						break
-					end
+				local it, state = db:nrows(q)
+				local row = it(state)
+				if row then
+					chk = false
+					break
+				end
 			end
 			if chk then
 				-- process the entry
@@ -959,9 +958,7 @@ local function hotlistp(name)
 	for _, v in ipairs(hotlist) do
 		if v == name then return end
 	end
-
 	table.insert(hotlist, name)
-
 	if #hotlist > 10 then
 		table.remove(hotlist, 1)
 	end
