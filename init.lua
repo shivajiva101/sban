@@ -104,7 +104,8 @@ local function get_id(name_or_ip)
 			WHERE playerdata.name = '%s' LIMIT 1;]]
 		):format(name_or_ip)
 	end
-	local row = next(db:nrows(q))
+	local it, state = db:nrows(q)
+	local row = it(state)
 	if row then
 		return row.id
 	end
@@ -113,7 +114,8 @@ end
 local function next_id()
 	local q = [[SELECT seq FROM sqlite_sequence WHERE name= "players"]]
 	-- returns an integer for last id
-	local row = next(db:nrows(q))
+	local it, state = db:nrows(q)
+	local row = it(state)
 	if row then
 		return row.seq + 1 -- next id
 	end
@@ -139,7 +141,8 @@ local function active_ban_record(id)
 		WHERE id = '%i' AND
 		active = 'true' LIMIT 1;
 	]]):format(id)
-	local row = next(db:nrows(q))
+	local it, state = db:nrows(q)
+	local row = it(state)
 	return row ~= nil
 end
 
@@ -159,9 +162,9 @@ local function check_ban(id)
 			bans.active = 'true' LIMIT 1;
 	]]):format(id)
 	-- fill return table
-	for row in db:nrows(q) do
-		return row
-	end
+	local it, state = db:nrows(q)
+	local row = it(state)
+	return row
 end
 
 local function is_banned(name_or_ip)
@@ -198,7 +201,8 @@ local function is_banned(name_or_ip)
 		]]):format(name_or_ip)
 	end
 	-- return record
-	local row = next(db.nrows(q))
+	local it, state = db:nrows(q)
+	local row = it(state)
 	return row
 end
 
@@ -295,7 +299,8 @@ end
 
 local function get_version()
 	local query = "SELECT * FROM version"
-	local row = db:nrows(query)
+	local it, state = db:nrows(query)
+	local row = it(state)
 	if row then
 		return row.rev
 	end
@@ -634,11 +639,12 @@ local function import_xban(name, file_name)
 			local chk = true
 			for _, v in ipairs(names) do
 				q = ([[SELECT * FROM playerdata WHERE name = '%s']]):format(v)
-					local row = next(db.nrows(q))
-					if row then
-						chk = false
-						break
-					end
+				local it, state = db:nrows(q)
+				local row = it(state)
+				if row then
+					chk = false
+					break
+				end
 			end
 			if chk then
 				-- process the entry
@@ -722,7 +728,8 @@ local function import_ipban(source)
 			local chk = true
 			local q = ([[SELECT * FROM
 				playerdata WHERE name = '%s']]):format(name)
-			local row = next(db:nrows(q))
+			local it, state = db:nrows(q)
+			local row = it(state)
 			if row then
 				chk = false
 			end
@@ -948,13 +955,10 @@ local function export_xban()
 end
 
 local function hotlistp(name)
-
-	for i,v in ipairs(hotlist) do
+	for _, v in ipairs(hotlist) do
 		if v == name then return end
 	end
-
 	table.insert(hotlist, name)
-
 	if #hotlist > 10 then
 		table.remove(hotlist, 1)
 	end
@@ -1032,11 +1036,15 @@ end
 local function getformspec(name)
 
 	local fs = state[name]
-	local f = ""
+	local f
 	local list = fs.list
+	local bgimg = ""
+	if default and default.gui_bg_img then
+		bgimg = default.gui_bg_img
+	end
 
 	f = "size[8,6.6]"
-	..default.gui_bg_img
+	..bgimg
 	.."field[0.3,0.4;4.5,0.5;search;;]"
 	.."field_close_on_enter[search;false]"
 	.."button[4.5,0.1;1.5,0.5;find;Find]"
@@ -1175,7 +1183,6 @@ minetest.register_on_player_receive_fields(function(player, formname, fields)
 					end
 				end
 			elseif fields.unban then
-				local id = get_id(selected)
 				unban_player(id, name, ESC(fields.reason), selected)
 				fs.bans = list_bans(id)
 			elseif fields.tban then
@@ -1184,6 +1191,7 @@ minetest.register_on_player_receive_fields(function(player, formname, fields)
 				else
 					local  t = parse_time(ESC(fields.duration)) + os.time()
 					ban_player(selected, name, ESC(fields.reason), t)
+					local q = qbc(id)
 					if not (q and active_ban_record(id)) then
 						fs.info = "Warning: failed to ban "..selected
 					end
@@ -1236,7 +1244,7 @@ minetest.override_chatcommand("ban", {
 			expires = parse_time(expiry) + os.time()
 		end
 		-- handle known/unknown players dependant on privs
-		local q = ""
+		local q
 		if id then
 			-- existing player
 			-- Params: name, source, reason, expires
@@ -1548,6 +1556,7 @@ minetest.register_on_prejoinplayer(function(name, ip)
 
 	if id == nil then return end -- no record
 	if qbc(id) then
+		-- Check
 		if not active_ban_record(id) then
 			-- partial record - remove
 			reset_orphan_record(id)
@@ -1564,12 +1573,11 @@ minetest.register_on_prejoinplayer(function(name, ip)
 	local data = check_ban(id)
 	local date
 	-- check for ban expiry
-	if data and 
-	type(data.expires) == "number" and data.expires ~= 0 then
-		--temp ban
+	if data and type(data.expires) == "number" and data.expires ~= 0 then
+		-- temp ban
 		if os.time() > data.expires then
 			-- clear temp ban
-			unban_player(data.id, "sban", "ban expired")
+			unban_player(data.id, "sban", "ban expired", name)
 			return
 		end
 		date = hrdf(data.expires)
