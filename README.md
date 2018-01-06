@@ -208,6 +208,6 @@ expiry dates.
 Thanks to:
 
 Shara for suggesting improvements and editing documentation.    
-rubenwardy for suggesting improvements to the inteface layout.    
+rubenwardy for suggesting improvements to the interface layout.    
 sofar for requesting a gui and suggesting the hotlist concept.    
 
