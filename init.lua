@@ -5,7 +5,7 @@ local WP = minetest.get_worldpath()
 local WL
 local ie = minetest.request_insecure_environment()
 local ESC = minetest.formspec_escape
-local hotlist
+local hotlist = {}
 
 if not ie then
 	error("insecure environment inaccessible"..
