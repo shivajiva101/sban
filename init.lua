@@ -2,10 +2,10 @@
 -- designed and coded by shivajiva101@hotmail.com
 
 local WP = minetest.get_worldpath()
-local WL = {}
+local WL
 local ie = minetest.request_insecure_environment()
 local ESC = minetest.formspec_escape
-local hotlist = {}
+local hotlist
 
 if not ie then
 	error("insecure environment inaccessible"..
@@ -104,14 +104,17 @@ local function get_id(name_or_ip)
 			WHERE playerdata.name = '%s' LIMIT 1;]]
 		):format(name_or_ip)
 	end
-	for row in db:nrows(q) do
+	local row = next(db:nrows(q))
+	if row then
 		return row.id
 	end
 end
 
 local function next_id()
 	local q = [[SELECT seq FROM sqlite_sequence WHERE name= "players"]]
-	for row in db:nrows(q) do
+	-- returns an integer for last id
+	local row = next(db:nrows(q))
+	if row then
 		return row.seq + 1 -- next id
 	end
 end
@@ -136,9 +139,8 @@ local function active_ban_record(id)
 		WHERE id = '%i' AND
 		active = 'true' LIMIT 1;
 	]]):format(id)
-	for row in db:nrows(q) do
-		return true
-	end
+	local row = next(db:nrows(q))
+	return row ~= nil
 end
 
 local function check_ban(id)
@@ -195,10 +197,9 @@ local function is_banned(name_or_ip)
 			bans.active = 'true' LIMIT 1;
 		]]):format(name_or_ip)
 	end
-	-- fill return table
-	for row in db:nrows(q) do
-		return row
-	end
+	-- return record
+	local row = next(db.nrows(q))
+	return row
 end
 
 local function list_bans(id)
@@ -294,7 +295,8 @@ end
 
 local function get_version()
 	local query = "SELECT * FROM version"
-	for row in db:nrows(query) do
+	local row = db:nrows(query)
+	if row then
 		return row.rev
 	end
 end
@@ -599,13 +601,15 @@ WL = get_whitelist()
 
 local function import_xban(name, file_name)
 
-	local t, e = load_xban(file_name)
+	local t, err = load_xban(file_name)
 	-- exit with error message
 	if not t then
-		return t, e
+		return t, err
 	end
 	local id = next_id()
-	print("processing "..#t.." records")
+
+	minetest.log("action", "processing "..#t.." records")
+
 	-- iterate the xban2 data
 	for i, e in ipairs(t) do
 		-- only process banned entries
@@ -616,7 +620,7 @@ local function import_xban(name, file_name)
 			local last_seen = e.last_seen
 			local last_pos = e.last_pos or ""
 			--local id = nil
-			local q = ""
+			local q
 			-- each entry in xban db contains a names field, both IP and names
 			-- are stored in this field, split into 2 tables
 			for k, v in pairs(e.names) do
@@ -628,9 +632,10 @@ local function import_xban(name, file_name)
 			end
 			-- check for existing entry by name
 			local chk = true
-			for i, v in ipairs(names) do
+			for _, v in ipairs(names) do
 				q = ([[SELECT * FROM playerdata WHERE name = '%s']]):format(v)
-					for row in db:nrows(q) do
+					local row = next(db.nrows(q))
+					if row then
 						chk = false
 						break
 					end
@@ -647,9 +652,9 @@ local function import_xban(name, file_name)
 				local ts = os.time()
 				if table.getn(names) > table.getn(ip) then
 					local tbl = table.getn(ip)
-					local idx = 0
-					for i,v in ipairs(names) do
-						idx = i
+					local idx
+					for ii, v in ipairs(names) do
+						idx = ii
 						if idx > tbl then idx = tbl end
 						-- id,name,ip,created,last_login
 						q = ([[
@@ -660,9 +665,9 @@ local function import_xban(name, file_name)
 					end
 				elseif table.getn(ip) > table.getn(names) then
 					local tbl = table.getn(names)
-					local idx = 0
-					for i, v in ipairs(ip) do
-						idx = i
+					local idx
+					for ii, v in ipairs(ip) do
+						idx = ii
 						if idx > tbl then idx = tbl end
 						-- id,name,ip,created,last_login
 						q = ([[
@@ -672,12 +677,12 @@ local function import_xban(name, file_name)
 						db_exec(q)
 					end
 				else
-					for i, v in ipairs(names) do
+					for ii, v in ipairs(names) do
 						-- id,name,ip,created,last_login
 						q = ([[
 						INSERT INTO playerdata
 						VALUES (%s,'%s','%s',%s,%s)
-						]]):format(id, v, ip[i], ts, last_seen)
+						]]):format(id, v, ip[ii], ts, last_seen)
 						db_exec(q)
 					end
 				end
@@ -685,10 +690,9 @@ local function import_xban(name, file_name)
 				-- u_date,active,last_pos
 				-- convert position to string
 				if last_pos.y then
-					last_pos = parse_pos(last_pos)
 					last_pos = minetest.pos_to_string(last_pos)
 				end
-				for i, v in ipairs(e.record) do
+				for _, v in ipairs(e.record) do
 					local expires = v.expires or ""
 					local reason = string.gsub(v.reason, "%'", "")
 					q = ([[
@@ -718,9 +722,9 @@ local function import_ipban(source)
 			local chk = true
 			local q = ([[SELECT * FROM
 				playerdata WHERE name = '%s']]):format(name)
-			for row in db:nrows(q) do
+			local row = next(db:nrows(q))
+			if row then
 				chk = false
-				break
 			end
 			if chk then
 				-- create player entry
@@ -759,7 +763,7 @@ local function sql_string(id, entry)
 	-- case: more names than IP's uses the last entry for reamining names
 	if #names > #ip then
 		local t = #ip
-		local idx = 0
+		local idx
 		for i, v in ipairs(names) do
 			idx = i
 			if idx > t then idx = t end
@@ -770,7 +774,7 @@ local function sql_string(id, entry)
 		-- case: more ip's than names uses last entry for remaining ip's
 	elseif #ip > #names then
 		local t = #names
-		local idx = 0
+		local idx
 		for i, v in ipairs(ip) do
 			idx = i
 			if idx > t then idx = t end
@@ -840,7 +844,6 @@ end
 local function export_xban()
 	-- so long, thanks for trying it :P
 	local xport = {}
-	local data = {}
 	local DEF_DB_FILENAME = minetest.get_worldpath().."/xban.db"
 	local DB_FILENAME = minetest.setting_get("xban.db_filename")
 
@@ -936,10 +939,10 @@ local function export_xban()
 	if f then
 		local ok, err = f:write(this_serialize(xport))
 		if not ok then
-			WARNING("Unable to save database: %s", err)
+			minetest.log("error", "Unable to save database: %s", err)
 		end
 	else
-		WARNING("Unable to save database: %s", e)
+		minetest.log("error", "Unable to save database: %s", e)
 	end
 	if f then f:close() end
 end
@@ -1581,7 +1584,7 @@ minetest.register_on_joinplayer(function(player)
 	local ip = minetest.get_player_ip(name)
 	if not ip then return end
 	local record = find_records(name)
-	local ip_record = {}
+	local ip_record
 
 	hotlistp(name)
 
