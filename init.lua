@@ -252,7 +252,7 @@ end
 local function find_records(name_or_ip)
 	local r,q = {}
 	local str, chk = ip_checker(name_or_ip)
-	if chk then then
+	if chk then
 		-- construct
 		q = ([[
 			SELECT  players.id,
