@@ -1245,31 +1245,28 @@ minetest.override_chatcommand("ban", {
 		if player_name == owner then
 			return false, "Insufficient privileges!"
 		end
-		-- banned player?
 		local id = get_id(player_name)
-		if qbc(id) then
-			if active_ban_record(id) then
-				return true, ("%s is already banned!"):format(player_name)
-			else
-				reset_orphan_record(id)
-				minetest.log("info",
-				"[sban] cleared orphaned ban in players table for "
-				..player_name)
-			end
-		end
-		-- limit ban?
-		local expires = ''
-		if expiry ~= nil then
-			expires = parse_time(expiry) + os.time()
-		end
 		-- handle known/unknown players dependant on privs
-		local q
 		if id then
-			-- existing player
+			-- banned player?
+			if qbc(id) then
+				if active_ban_record(id) then
+					return true, ("%s is already banned!"):format(player_name)
+				else
+					reset_orphan_record(id)
+					minetest.log("info",
+					"[sban] cleared orphaned ban in players table for "
+					..player_name)
+				end
+			end
+			-- limit ban?
+			local expires = ''
+			if expiry ~= nil then
+				expires = parse_time(expiry) + os.time()
+			end
 			-- Params: name, source, reason, expires
 			ban_player(player_name, name, reason, expires)
-			q = qbc(id)
-			if q and active_ban_record(id) then
+			if qbc(id) and active_ban_record(id) then
 				return true, ("Banned %s."):format(player_name)
 			else
 				minetest.log("error", "Failed to ban "..player_name)
@@ -1279,13 +1276,12 @@ minetest.override_chatcommand("ban", {
 			local privs = minetest.get_player_privs(name)
 			-- assert normal behaviour without ban_admin priv
 			if not privs.ban_admin then
-				return false, "Player doesn't exist!"
+				return false, "Player "..player_name.." doesn't exist!"
 			end
 			-- create entry before ban
 			id = create_entry(player_name, "0.0.0.0") -- arbritary ip
 			ban_player(player_name, name, reason, expires)
-			q = qbc(id)
-			if q and active_ban_record(id) then
+			if qbc(id) and active_ban_record(id) then
 				return true, ("Banned nonexistent player %s."):format(player_name)
 			else
 				minetest.log("error", "Failed to ban "..player_name)
@@ -1448,36 +1444,34 @@ minetest.register_chatcommand("tempban", {
 	privs = { ban = true },
 	func = function(name, params)
 		local player_name, time, reason = params:match("(%S+)%s+(%S+)%s+(.+)")
+		-- correct params?
 		if not (player_name and time and reason) then
 			return false, "Usage: /tempban <player> <time> <reason>"
 		end
+		
 		if player_name == owner then
 			return false, "Insufficient privileges!"
 		end
 		-- is player already banned?
 		local id = get_id(player_name)
-		local q = qbc(id)
-		if q then
-			if active_ban_record(id) then
-				return true, ("%s is already banned!"):format(player_name)
-			else
-				reset_orphan_record(id)
-				minetest.log("info",
-				"[sban] cleared orphaned ban in players table for "
-				..player_name)
+		if id then
+			if qbc(id) then
+				if active_ban_record(id) then
+					return true, ("%s is already banned!"):format(player_name)
+				else
+					reset_orphan_record(id)
+					minetest.log("info",
+					"[sban] cleared orphaned ban in players table for "
+					..player_name)
+				end
 			end
-		end
-		time = parse_time(time)
-		if time < 60 then
-			return false, "You must ban for at least 60 seconds."
-		end
-		local expires = os.time() + time
-		local r = find_records(player_name)
-		if #r > 0 then
-			-- existing player
+			time = parse_time(time)
+			if time < 60 then
+				return false, "You must ban for at least 60 seconds."
+			end
+			local expires = os.time() + time
 			ban_player(player_name, name, reason, expires)
-			q = qbc(id)
-			if q and active_ban_record(id) then
+			if qbc(id) and active_ban_record(id) then
 				return true, ("Banned %s until %s."):format(
 				player_name, os.date("%c", expires))
 			else
@@ -1516,22 +1510,22 @@ minetest.override_chatcommand("unban", {
 		end
 		-- look for records by id
 		local id = get_id(player_name)
-		local q = qbc(id)
-		if not q then
-			return false, ("No active ban record for "..player_name)
-		end
-		local bans = list_bans(id) -- get ban records
-		-- look for the active ban
-		for i, v in ipairs(bans) do
-			if v.active then
-				unban_player(id, name, reason, player_name)
-				q = qbc(id)
-				if not q then
-					return true, ("Unbanned %s."):format(v.name)
-				elseif q then
-					minetest.log("error", "[sban] Failed to unban "..
-					player_name)
-					return false
+		if id then
+			if not qbc(id) then
+				return false, ("No active ban record for "..player_name)
+			end
+			local bans = list_bans(id) -- get ban records
+			-- look for the active ban
+			for i, v in ipairs(bans) do
+				if v.active then
+					unban_player(id, name, reason, player_name)
+					if not qbc(id) then
+						return true, ("Unbanned %s."):format(v.name)
+					elseif q then
+						minetest.log("error", "[sban] Failed to unban "..
+						player_name)
+						return false
+					end
 				end
 			end
 		end
