@@ -58,6 +58,22 @@ local function hrdf(t)
 		return (t and os.date("%c", t))
 	end
 end
+-- handle ip4 & ip6 types
+local function ip_checker(str)
+	local chk
+	if str:find(":") then
+		-- it's an ip6 format
+		chk = true
+		if str:find("%.") then
+			-- ip4 expressed as ip6 remove ::ffff:
+			str = str:sub(8)
+		end
+	elseif str:find("%.") then
+		-- ip4
+		chk = true
+	end
+	return str, chk
+end
 
 --[[
 ##########################
@@ -87,14 +103,15 @@ db_exec(createDb)
 
 local function get_id(name_or_ip)
 	local q
-	if name_or_ip:find("%.") then
+	local str, chk = ip_checker(name_or_ip)
+	if chk then
 		q = ([[
 			SELECT players.id
 			FROM players
 			INNER JOIN
 			playerdata ON playerdata.id = players.id
 			WHERE playerdata.ip = '%s' LIMIT 1;]]
-		):format(name_or_ip)
+		):format(str)
 	else
 		q = ([[
 			SELECT players.id
@@ -169,7 +186,8 @@ end
 
 local function is_banned(name_or_ip)
 	local q
-	if name_or_ip:find("%.") then
+	local str, chk = ip_checker(name_or_ip)
+	if chk then
 		q = ([[
 		SELECT  players.id,
 			playerdata.ip,
@@ -183,7 +201,7 @@ local function is_banned(name_or_ip)
 		WHERE   players.ban = 'true' AND
 			playerdata.ip = '%s' AND
 			bans.active = 'true' LIMIT 1;
-		]]):format(name_or_ip)
+		]]):format(str)
 	else
 		q = ([[
 		SELECT  players.id,
@@ -233,7 +251,8 @@ end
 
 local function find_records(name_or_ip)
 	local r,q = {}
-	if name_or_ip:find("%.") then
+	local str, chk = ip_checker(name_or_ip)
+	if chk then then
 		-- construct
 		q = ([[
 			SELECT  players.id,
@@ -246,7 +265,7 @@ local function find_records(name_or_ip)
 			INNER JOIN
 				playerdata ON playerdata.id = players.id
 			WHERE playerdata.ip = '%s';
-		]]):format(name_or_ip)
+		]]):format(str)
 	else
 		q = ([[
 			SELECT  players.id,
