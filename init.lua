@@ -1266,11 +1266,11 @@ minetest.override_chatcommand("ban", {
 			end
 			-- Params: name, source, reason, expires
 			ban_player(player_name, name, reason, expires)
-			if qbc(id) and active_ban_record(id) then
-				return true, ("Banned %s."):format(player_name)
-			else
+			if not (qbc(id) and active_ban_record(id)) then
 				minetest.log("error", "Failed to ban "..player_name)
 				return false, ("Failed to ban %s"):format(player_name)
+			else	
+				return true, ("Banned %s."):format(player_name)
 			end
 		else
 			local privs = minetest.get_player_privs(name)
@@ -1471,12 +1471,12 @@ minetest.register_chatcommand("tempban", {
 			end
 			local expires = os.time() + time
 			ban_player(player_name, name, reason, expires)
-			if qbc(id) and active_ban_record(id) then
-				return true, ("Banned %s until %s."):format(
-				player_name, os.date("%c", expires))
-			else
+			if not(qbc(id) and active_ban_record(id)) then
 				minetest.log("error", "Failed to ban "..player_name)
 				return false, ("Failed to ban %s"):format(player_name)
+			else
+				return true, ("Banned %s until %s."):format(
+				player_name, os.date("%c", expires))
 			end
 		else
 			local privs = minetest.get_player_privs(name)
@@ -1487,13 +1487,12 @@ minetest.register_chatcommand("tempban", {
 			-- create entry before ban
 			create_entry(player_name, "0.0.0.0")
 			ban_player(player_name, name, reason, expires)
-			q = qbc(id)
-			if q then
-				return true, ("Banned nonexistent player %s until %s."
-				):format(player_name, os.date("%c", expires))
-			else
+			if not(qbc(id) and active_ban_record(id)) then
 				minetest.log("error", "Failed to ban "..player_name)
 				return false, ("Failed to ban %s"):format(player_name)
+			else
+				return true, ("Banned nonexistent player %s until %s."
+				):format(player_name, os.date("%c", expires))	
 			end
 		end
 	end,
@@ -1519,12 +1518,12 @@ minetest.override_chatcommand("unban", {
 			for i, v in ipairs(bans) do
 				if v.active then
 					unban_player(id, name, reason, player_name)
-					if not qbc(id) then
-						return true, ("Unbanned %s."):format(v.name)
-					elseif q then
-						minetest.log("error", "[sban] Failed to unban "..
-						player_name)
+					if qbc(id) then
+						minetest.log("error", "[sban] Failed to unban "..player_name)
 						return false
+					else
+
+						return true, ("Unbanned %s."):format(v.name)
 					end
 				end
 			end
