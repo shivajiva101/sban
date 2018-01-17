@@ -1245,6 +1245,7 @@ minetest.override_chatcommand("ban", {
 		if player_name == owner then
 			return false, "Insufficient privileges!"
 		end
+		local expires = ''
 		local id = get_id(player_name)
 		-- handle known/unknown players dependant on privs
 		if id then
@@ -1260,7 +1261,6 @@ minetest.override_chatcommand("ban", {
 				end
 			end
 			-- limit ban?
-			local expires = ''
 			if expiry ~= nil then
 				expires = parse_time(expiry) + os.time()
 			end
