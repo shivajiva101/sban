@@ -1361,7 +1361,7 @@ minetest.register_chatcommand("ban_record", {
 	privs = { ban = true },
 	func = function(name, params)
 		local playername = params:match("%S+")
-		if not playername then
+		if not playername or playername:find("*") then
 			return false, "Useage: /ban_record <player_name>"
 		end
 		-- get target and source privs
