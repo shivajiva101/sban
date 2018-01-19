@@ -1366,6 +1366,9 @@ minetest.register_chatcommand("ban_record", {
 		end
 		-- get target and source privs
 		local id = get_id(playername)
+		if not id then
+			return false, "Unknown player!"
+		end
 		local target = find_records_by_id(id)
 		local source = minetest.get_player_privs(name)
 		local chk = false
