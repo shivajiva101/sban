@@ -264,7 +264,7 @@ local function find_records(name_or_ip)
 			INNER JOIN
 				playerdata ON playerdata.id = players.id
 			WHERE playerdata.ip = '%s';
-		]]):format(str)
+		]]):format(name_or_ip)
 	else
 		q = ([[
 			SELECT  players.id,
