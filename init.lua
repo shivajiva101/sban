@@ -72,7 +72,7 @@ local function hrdf(t)
 end
 -- handle ip4 & ip6 types
 local function ip_checker(str)
-	if str:find(":") or str:find("%.") then 
+	if str:find(":") or str:find("%.") then
 		return true
 	end
 end
@@ -1268,7 +1268,7 @@ minetest.override_chatcommand("ban", {
 			if not (qbc(id) and active_ban_record(id)) then
 				minetest.log("error", "Failed to ban "..player_name)
 				return false, ("Failed to ban %s"):format(player_name)
-			else	
+			else
 				return true, ("Banned %s."):format(player_name)
 			end
 		else
@@ -1450,10 +1450,17 @@ minetest.register_chatcommand("tempban", {
 		if not (player_name and time and reason) then
 			return false, "Usage: /tempban <player> <time> <reason>"
 		end
-		
+
 		if player_name == owner then
 			return false, "Insufficient privileges!"
 		end
+
+		time = parse_time(time)
+		if time < 60 then
+			return false, "You must ban for at least 60 seconds."
+		end
+		local expires = os.time() + time
+
 		-- is player already banned?
 		local id = get_id(player_name)
 		if id then
@@ -1467,11 +1474,7 @@ minetest.register_chatcommand("tempban", {
 					..player_name)
 				end
 			end
-			time = parse_time(time)
-			if time < 60 then
-				return false, "You must ban for at least 60 seconds."
-			end
-			local expires = os.time() + time
+
 			ban_player(player_name, name, reason, expires)
 			if not(qbc(id) and active_ban_record(id)) then
 				minetest.log("error", "Failed to ban "..player_name)
@@ -1494,7 +1497,7 @@ minetest.register_chatcommand("tempban", {
 				return false, ("Failed to ban %s"):format(player_name)
 			else
 				return true, ("Banned nonexistent player %s until %s."
-				):format(player_name, os.date("%c", expires))	
+				):format(player_name, os.date("%c", expires))
 			end
 		end
 	end,

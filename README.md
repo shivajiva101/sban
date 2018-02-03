@@ -1,5 +1,7 @@
 # sban
 
+[![Build Status](https://travis-ci.org/shivajiva101/sban.svg?branch=master)](https://travis-ci.org/shivajiva101/sban)
+
 This mod is based on the concepts introduced by xban2, and expands on them
 by using an sql database instead of a serialised table file. This approach to
 ban management:
@@ -210,4 +212,3 @@ Thanks to:
 Shara for suggesting improvements and editing documentation.    
 rubenwardy for suggesting improvements to the interface layout.    
 sofar for requesting a gui and suggesting the hotlist concept.    
-

@@ -5,6 +5,5 @@ read_globals = {
 	"minetest",
 	string = {fields = {"split"}},
 	table = {fields = {"copy", "getn"}},
-	"vector",
+	"vector", "default",
 }
-
