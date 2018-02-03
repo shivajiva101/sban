@@ -72,7 +72,7 @@ local function hrdf(t)
 end
 -- handle ip4 & ip6 types
 local function ip_checker(str)
-	if str:find(":") or str:find("%.") then 
+	if str:find(":") or str:find("%.") then
 		return true
 	end
 end
@@ -331,6 +331,21 @@ local function display_record(name, p_name)
 		minetest.chat_send_player(name, "No records for "..p_name)
 		return
 	end
+
+	-- Show names
+	do
+		local names_hash = {}
+		local names = {}
+		for i = 1, #r do
+			local name = r[i].name
+			if not names_hash[name] then
+				names_hash[name] = true
+				names[#names + 1] = name
+			end
+		end
+		minetest.chat_send_player(name, "Names: " .. table.concat(names, ", "))
+	end
+
 	local privs = minetest.get_player_privs(name)
 	-- records loaded, display
 	local idx = 1
@@ -1268,7 +1283,7 @@ minetest.override_chatcommand("ban", {
 			if not (qbc(id) and active_ban_record(id)) then
 				minetest.log("error", "Failed to ban "..player_name)
 				return false, ("Failed to ban %s"):format(player_name)
-			else	
+			else
 				return true, ("Banned %s."):format(player_name)
 			end
 		else
@@ -1450,7 +1465,7 @@ minetest.register_chatcommand("tempban", {
 		if not (player_name and time and reason) then
 			return false, "Usage: /tempban <player> <time> <reason>"
 		end
-		
+
 		if player_name == owner then
 			return false, "Insufficient privileges!"
 		end
@@ -1494,7 +1509,7 @@ minetest.register_chatcommand("tempban", {
 				return false, ("Failed to ban %s"):format(player_name)
 			else
 				return true, ("Banned nonexistent player %s until %s."
-				):format(player_name, os.date("%c", expires))	
+				):format(player_name, os.date("%c", expires))
 			end
 		end
 	end,
