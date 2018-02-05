@@ -331,6 +331,21 @@ local function display_record(name, p_name)
 		minetest.chat_send_player(name, "No records for "..p_name)
 		return
 	end
+
+	-- Show names
+	do
+		local names_hash = {}
+		local names = {}
+		for i = 1, #r do
+			local name = r[i].name
+			if not names_hash[name] then
+				names_hash[name] = true
+				names[#names + 1] = name
+			end
+		end
+		minetest.chat_send_player(name, "Names: " .. table.concat(names, ", "))
+	end
+
 	local privs = minetest.get_player_privs(name)
 	-- records loaded, display
 	local idx = 1
