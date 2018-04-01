@@ -18,13 +18,11 @@ local _sql = ie.require("lsqlite3")
 if sqlite3 then sqlite3 = nil end
 
 minetest.register_privilege("ban_admin", "Bans administrator")
+minetest.register_privilege("/whois", "Access player info")
 
 local db_version = "0.1"
 local db = _sql.open(WP.."/sban.sqlite") -- connection
-local expiry
-local owner
-local def_duration
-local display_max
+local expiry, owner, def_duration, display_max, names_per_ip
 local t_units = {
 	s = 1, m = 60, h = 3600,
 	d = 86400, w = 604800, M = 2592000, y = 31104000,
@@ -37,11 +35,13 @@ if minetest.settings then
 	owner = minetest.settings:get("name")
 	def_duration = minetest.settings:get("sban.fs_duration") or "1w"
 	display_max = minetest.settings:get("sban.display_max") or 10
+	names_per_ip = tonumber(minetest.settings:get("max_names_per_ip")) or 5
 else
 	expiry = minetest.setting_get("sban.ban_max")
 	owner = minetest.setting_get("name")
 	def_duration = minetest.setting_get("sban.fs_duration") or "1w"
 	display_max = minetest.setting_get("sban.display_max") or 10
+	names_per_ip = tonumber(minetest.setting_get("max_names_per_ip"))
 end
 
 -- db:exec wrapper for error reporting
@@ -143,7 +143,7 @@ local function next_id()
 	end
 end
 
-local function qbc(id)
+local function active_ban(id)
 	local q = ([[
 		SELECT ban
 		FROM players
@@ -326,6 +326,36 @@ local function get_version()
 	if row then
 		return row.rev
 	end
+end
+
+local function account_ips(id)
+	local r,q = {}
+	-- construct query
+	q = ([[
+		SELECT DISTINCT ip
+		FROM 	playerdata
+		WHERE 	id = '%i';
+	]]):format(id)
+	-- fill return table
+	for row in db:nrows(q) do
+		r[#r + 1] = row
+	end
+	return r
+end
+
+local function account_names(id)
+	local r,q = {}
+	-- construct query
+	q = ([[
+		SELECT DISTINCT name
+		FROM playerdata
+		WHERE id = '%i';
+	]]):format(id)
+	-- fill return table
+	for row in db:nrows(q) do
+		r[#r + 1] = row
+	end
+	return r
 end
 
 local function display_record(name, p_name)
@@ -1134,7 +1164,7 @@ local function update_state(name, selected)
 
 	local info = "Ban records: "..#fs.bans.."\n"
 
-	fs.banned = qbc(id)
+	fs.banned = active_ban(id)
 	fs.multi = false
 
 	if #fs.bans == 0 then
@@ -1216,7 +1246,7 @@ minetest.register_on_player_receive_fields(function(player, formname, fields)
 					fs.info = "you do not have permission to do that!"
 				else
 					ban_player(selected, name, ESC(fields.reason), '')
-					local q = qbc(id)
+					local q = active_ban(id)
 					if not (q and active_ban_record(id)) then
 						fs.info = "Warning: failed to ban "..selected
 					end
@@ -1230,7 +1260,7 @@ minetest.register_on_player_receive_fields(function(player, formname, fields)
 				else
 					local  t = parse_time(ESC(fields.duration)) + os.time()
 					ban_player(selected, name, ESC(fields.reason), t)
-					local q = qbc(id)
+					local q = active_ban(id)
 					if not (q and active_ban_record(id)) then
 						fs.info = "Warning: failed to ban "..selected
 					end
@@ -1270,7 +1300,7 @@ minetest.override_chatcommand("ban", {
 		-- handle known/unknown players dependant on privs
 		if id then
 			-- banned player?
-			if qbc(id) then
+			if active_ban(id) then
 				if active_ban_record(id) then
 					return true, ("%s is already banned!"):format(player_name)
 				else
@@ -1286,7 +1316,7 @@ minetest.override_chatcommand("ban", {
 			end
 			-- Params: name, source, reason, expires
 			ban_player(player_name, name, reason, expires)
-			if not (qbc(id) and active_ban_record(id)) then
+			if not (active_ban(id) and active_ban_record(id)) then
 				minetest.log("error", "Failed to ban "..player_name)
 				return false, ("Failed to ban %s"):format(player_name)
 			else
@@ -1301,7 +1331,7 @@ minetest.override_chatcommand("ban", {
 			-- create entry before ban
 			id = create_entry(player_name, "0.0.0.0") -- arbritary ip
 			ban_player(player_name, name, reason, expires)
-			if qbc(id) and active_ban_record(id) then
+			if active_ban(id) and active_ban_record(id) then
 				return true, ("Banned nonexistent player %s."):format(player_name)
 			else
 				minetest.log("error", "Failed to ban "..player_name)
@@ -1485,7 +1515,7 @@ minetest.register_chatcommand("tempban", {
 		-- is player already banned?
 		local id = get_id(player_name)
 		if id then
-			if qbc(id) then
+			if active_ban(id) then
 				if active_ban_record(id) then
 					return true, ("%s is already banned!"):format(player_name)
 				else
@@ -1497,7 +1527,7 @@ minetest.register_chatcommand("tempban", {
 			end
 
 			ban_player(player_name, name, reason, expires)
-			if not(qbc(id) and active_ban_record(id)) then
+			if not(active_ban(id) and active_ban_record(id)) then
 				minetest.log("error", "Failed to ban "..player_name)
 				return false, ("Failed to ban %s"):format(player_name)
 			else
@@ -1513,7 +1543,7 @@ minetest.register_chatcommand("tempban", {
 			-- create entry before ban
 			create_entry(player_name, "0.0.0.0")
 			ban_player(player_name, name, reason, expires)
-			if not(qbc(id) and active_ban_record(id)) then
+			if not(active_ban(id) and active_ban_record(id)) then
 				minetest.log("error", "Failed to ban "..player_name)
 				return false, ("Failed to ban %s"):format(player_name)
 			else
@@ -1536,7 +1566,7 @@ minetest.override_chatcommand("unban", {
 		-- look for records by id
 		local id = get_id(player_name)
 		if id then
-			if not qbc(id) then
+			if not active_ban(id) then
 				return false, ("No active ban record for "..player_name)
 			end
 			local bans = list_bans(id) -- get ban records
@@ -1544,7 +1574,7 @@ minetest.override_chatcommand("unban", {
 			for i, v in ipairs(bans) do
 				if v.active then
 					unban_player(id, name, reason, player_name)
-					if qbc(id) then
+					if active_ban(id) then
 						minetest.log("error", "[sban] Failed to unban "..player_name)
 						return false
 					else
@@ -1572,6 +1602,39 @@ minetest.register_chatcommand("bang", {
 	end
 })
 
+minetest.register_chatcommand("/whois", {
+	description = "Returns info on a player",
+	privs = {whois = true},
+	func = function(name, param)
+		if not param then
+			return false, "Useage: /whois <player>"
+		end
+		local id = get_id(param)
+		if not id then
+			return false, "The player \"" .. param .. "\" did not join yet."
+		end
+		local data = account_names(id)
+		local msg1, msg2 = "", ""
+		for i, v in ipairs(data) do
+			if msg1 ~= "" then
+				msg1 = msg1 .. ", " .. v.name
+			else
+				msg1 = msg1 .. " " .. v.name
+			end
+		end
+		msg1 = msg1 .. "\nIP Adresses: "
+		data = account_ips(id)
+		for i, v in ipairs(data) do
+			if msg2 ~= "" then
+				msg2 = msg2 .. ", " .. v.ip
+			else
+				msg2 = msg2 .. " " .. v.ip
+			end
+		end
+		return false, "Player info for " .. param .. ": " .. msg1 .. msg2
+	end,
+})
+
 --[[
 ############################
 ###  Register callbacks  ###
@@ -1593,7 +1656,31 @@ minetest.register_on_prejoinplayer(function(name, ip)
 	local id = get_id(name) or get_id(ip)
 
 	if id == nil then return end -- no record
-	if qbc(id) then
+	
+	local banned = active_ban(id)
+	if not banned then
+		if names_per_ip then
+			-- names per ip
+			local names = account_names(id)
+			-- allow existing
+			for i,v in ipairs(names) do
+				if v.name == name then return end
+			end
+			-- check player isn't exceeding account limit
+			if #names >= names_per_ip then
+				-- create string list
+				local msg = ""
+				for i,v in ipairs(names) do
+					msg = msg..v.name..", "
+				end
+				msg = msg:sub(1, msg:len() - 2) -- trim trailing ','
+				return ("\nYou exceeded the limit of accounts ("..
+				names_per_ip..").\nYou already have the following accounts:\n"
+				..msg)
+			end
+		end
+		return
+	else
 		-- Check
 		if not active_ban_record(id) then
 			-- partial record - remove
@@ -1601,10 +1688,7 @@ minetest.register_on_prejoinplayer(function(name, ip)
 			minetest.log("info",
 			"[sban] cleared orphaned ban in players table for "
 			..name)
-			return
 		end
-	else
-		return -- not banned
 	end
 
 	-- Retrieve player record
