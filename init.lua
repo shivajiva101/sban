@@ -77,6 +77,10 @@ local function ip_checker(str)
 	end
 end
 
+local function parse_reason(str)
+	return string.gsub(str, "'", "''")
+end
+
 --[[
 ##########################
 ###  Database: Tables  ###
@@ -470,6 +474,7 @@ local function ban_player(name, source, reason, expires)
 	local ts = os.time()
 	local id = get_id(name)
 	local player = minetest.get_player_by_name(name)
+	local p_reason = parse_reason(reason)
 
 	-- initialise last position
 	local last_pos = ""
@@ -481,7 +486,7 @@ local function ban_player(name, source, reason, expires)
 	local stmt = ([[
 		INSERT INTO bans
 		VALUES ('%s','%s','%s','%s','%s','%s','','','','true','%s')
-	]]):format(id, name, source, ts, reason, expires, last_pos)
+	]]):format(id, name, source, ts, p_reason, expires, last_pos)
 	db_exec(stmt)
 	-- players: id,ban
 	stmt = ([[
@@ -533,6 +538,7 @@ local function update_login(player_name)
 	end
 
 local function unban_player(id, source, reason, name)
+	local p_reason = parse_reason(reason)
 	local ts = os.time()
 	local stmt = ([[
 			UPDATE players SET ban = 'false' WHERE id = '%i'
@@ -545,7 +551,7 @@ local function unban_player(id, source, reason, name)
 			u_reason = '%s',
 			u_date = '%i'
 		WHERE id = '%i' AND active = 'true';
-	]]):format(source, reason, ts, id)
+	]]):format(source, p_reason, ts, id)
 	db_exec(stmt)
 	-- log event
 	minetest.log("action",
@@ -733,7 +739,7 @@ local function import_xban(name, file_name)
 				end
 				for _, v in ipairs(e.record) do
 					local expires = v.expires or ""
-					local reason = string.gsub(v.reason, "%'", "")
+					local reason = string.gsub(v.reason, "'", "''")
 					q = ([[
 					INSERT INTO bans
 					VALUES ('%s','%s','%s','%s','%s','%s','','','','%s','%s')
@@ -840,7 +846,7 @@ local function sql_string(id, entry)
 		-- id,name,source,created,reason,expires,u_source,u_reason,u_date,active,last_pos
 		for i, v in ipairs(entry.record) do
 			local expires = v.expires or ""
-			local reason = string.gsub(v.reason, "%'", "")
+			local reason = string.gsub(v.reason, "'", "''")
 			reason = string.gsub(reason, "%:%)", "")
 			q = q..("INSERT INTO bans VALUES ('%s','%s','%s','%i','%s','%s','','','','%s','%s');\n"
 			):format(id, names[1], v.source, v.time, reason, expires, entry.banned, last_pos)
