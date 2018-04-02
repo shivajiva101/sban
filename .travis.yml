@@ -7,6 +7,6 @@ addons:
 before_install:
   - luarocks install --local luacheck
 script:
-- $HOME/.luarocks/bin/luacheck --no-color ./mods
+- $HOME/.luarocks/bin/luacheck --no-color ./sban
 notifications:
   email: false
