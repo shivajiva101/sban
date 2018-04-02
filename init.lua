@@ -18,7 +18,6 @@ local _sql = ie.require("lsqlite3")
 if sqlite3 then sqlite3 = nil end
 
 minetest.register_privilege("ban_admin", "Bans administrator")
-minetest.register_privilege("/whois", "Access player info")
 
 local db_version = "0.1"
 local db = _sql.open(WP.."/sban.sqlite") -- connection
@@ -34,14 +33,14 @@ if minetest.settings then
 	expiry = minetest.settings:get("sban.ban_max")
 	owner = minetest.settings:get("name")
 	def_duration = minetest.settings:get("sban.fs_duration") or "1w"
-	display_max = minetest.settings:get("sban.display_max") or 10
-	names_per_ip = tonumber(minetest.settings:get("max_names_per_ip"))
+	display_max = tonumber(minetest.settings:get("sban.display_max")) or 10
+	names_per_ip = tonumber(minetest.settings:get("sban.names_per_ip"))
 else
 	expiry = minetest.setting_get("sban.ban_max")
 	owner = minetest.setting_get("name")
 	def_duration = minetest.setting_get("sban.fs_duration") or "1w"
-	display_max = minetest.setting_get("sban.display_max") or 10
-	names_per_ip = tonumber(minetest.setting_get("max_names_per_ip"))
+	display_max = tonumber(minetest.setting_get("sban.display_max")) or 10
+	names_per_ip = tonumber(minetest.setting_get("sban.names_per_ip"))
 end
 
 -- db:exec wrapper for error reporting
@@ -1604,7 +1603,7 @@ minetest.register_chatcommand("bang", {
 
 minetest.register_chatcommand("/whois", {
 	description = "Returns info on a player",
-	privs = {whois = true},
+	privs = {ban_admin = true},
 	func = function(name, param)
 		if not param then
 			return false, "Useage: /whois <player>"
