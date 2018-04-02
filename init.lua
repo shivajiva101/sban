@@ -35,7 +35,7 @@ if minetest.settings then
 	owner = minetest.settings:get("name")
 	def_duration = minetest.settings:get("sban.fs_duration") or "1w"
 	display_max = minetest.settings:get("sban.display_max") or 10
-	names_per_ip = tonumber(minetest.settings:get("max_names_per_ip")) or 5
+	names_per_ip = tonumber(minetest.settings:get("max_names_per_ip"))
 else
 	expiry = minetest.setting_get("sban.ban_max")
 	owner = minetest.setting_get("name")
