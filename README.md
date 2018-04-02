@@ -176,6 +176,14 @@ if you intend using xban2 and wish to retain the data.
 
 Do this before enabling xban2 mod otherwise it will be overwritten by the currently loaded data.
 
+#### whois
+
+```Usage: //whois <name>```
+
+Example: //whois sadie
+
+Returns all known accounts and ip addresses asociated with a player name.
+
 #### CONFIG
 
 You can add these optional settings to minetest.conf to adjust the sban mod's
@@ -204,6 +212,14 @@ set. If required, longer ban durations can still be set with the tempban command
 Please note that if you delete or adjust the setting, after restarting the server, bans
 created while the setting was active will not change and will retain their adjusted
 expiry dates.
+
+#### sban.accounts_per_ip
+
+Restricts accounts a player can make from an ip address.
+
+Example: sban.accounts_per_ip = 5
+
+Please note this is optional and without the setting the player accounts are unrestricted.
 
 #### CREDITS
 
