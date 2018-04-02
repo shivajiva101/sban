@@ -341,10 +341,10 @@ local function display_record(name, p_name)
 		local names_hash = {}
 		local names = {}
 		for i = 1, #r do
-			local name = r[i].name
-			if not names_hash[name] then
-				names_hash[name] = true
-				names[#names + 1] = name
+			local record_name = r[i].name
+			if not names_hash[record_name] then
+				names_hash[record_name] = true
+				names[#names + 1] = record_name
 			end
 		end
 		minetest.chat_send_player(name, "Names: " .. table.concat(names, ", "))
