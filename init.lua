@@ -34,13 +34,13 @@ if minetest.settings then
 	owner = minetest.settings:get("name")
 	def_duration = minetest.settings:get("sban.fs_duration") or "1w"
 	display_max = tonumber(minetest.settings:get("sban.display_max")) or 10
-	names_per_ip = tonumber(minetest.settings:get("sban.names_per_ip"))
+	names_per_ip = tonumber(minetest.settings:get("sban.accounts_per_ip"))
 else
 	expiry = minetest.setting_get("sban.ban_max")
 	owner = minetest.setting_get("name")
 	def_duration = minetest.setting_get("sban.fs_duration") or "1w"
 	display_max = tonumber(minetest.setting_get("sban.display_max")) or 10
-	names_per_ip = tonumber(minetest.setting_get("sban.names_per_ip"))
+	names_per_ip = tonumber(minetest.setting_get("sban.accounts_per_ip"))
 end
 
 -- db:exec wrapper for error reporting
