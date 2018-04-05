@@ -488,7 +488,7 @@ local function ban_player(name, source, reason, expires)
 		VALUES ('%s','%s','%s','%s','%s','%s','','','','true','%s')
 	]]):format(id, name, source, ts, p_reason, expires, last_pos)
 	db_exec(stmt)
-	-- players: id,ban
+	-- players table: id,ban
 	stmt = ([[
 			UPDATE players SET ban = 'true' WHERE id = '%s'
 			]]):format(id)
@@ -511,7 +511,11 @@ local function ban_player(name, source, reason, expires)
 	-- kick all names associated with the player
 	local records = find_records_by_id(id)
 	for i, v in ipairs(records) do
-		minetest.kick_player(v.name, msg_k)
+		player = minetest.get_player_by_name(v.name)
+		if player then
+			player:set_detach()
+			minetest.kick_player(v.name, msg_k)
+		end
 	end
 end
 
