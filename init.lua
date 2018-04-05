@@ -1576,6 +1576,33 @@ minetest.register_chatcommand("bang", {
 	end
 })
 
+minetest.override_chatcommand("kick", {
+	params = "<name> [reason]",
+	description = "Kick a player",
+	privs = {kick=true},
+	func = function(name, param)
+		local tokick, reason = param:match("([^ ]+) (.+)")
+		tokick = tokick or param
+		local player = minetest.get_player_by_name(tokick)
+		if not player then
+			return false, "Player " .. tokick .. " not in game!"
+		end
+		if not minetest.kick_player(tokick, reason) then
+			player:set_detach()
+			if not minetest.kick_player(tokick, reason) then
+				return false, "Failed to kick player " .. tokick ..
+				" after detaching!"
+			end
+		end
+		local log_reason = ""
+		if reason then
+			log_reason = " with reason \"" .. reason .. "\""
+		end
+		minetest.log("action", name .. " kicks " .. tokick .. log_reason)
+		return true, "Kicked " .. tokick
+	end,
+})
+
 --[[
 ############################
 ###  Register callbacks  ###
