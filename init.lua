@@ -21,7 +21,7 @@ minetest.register_privilege("ban_admin", "Bans administrator")
 
 local db_version = "0.1"
 local db = _sql.open(WP.."/sban.sqlite") -- connection
-local expiry, owner, def_duration, display_max, names_per_ip
+local expiry, owner, def_duration, display_max, names_per_id
 local t_units = {
 	s = 1, m = 60, h = 3600,
 	d = 86400, w = 604800, M = 2592000, y = 31104000,
@@ -34,13 +34,13 @@ if minetest.settings then
 	owner = minetest.settings:get("name")
 	def_duration = minetest.settings:get("sban.fs_duration") or "1w"
 	display_max = tonumber(minetest.settings:get("sban.display_max")) or 10
-	names_per_ip = tonumber(minetest.settings:get("sban.accounts_per_ip"))
+	names_per_id = tonumber(minetest.settings:get("sban.accounts_per_id"))
 else
 	expiry = minetest.setting_get("sban.ban_max")
 	owner = minetest.setting_get("name")
 	def_duration = minetest.setting_get("sban.fs_duration") or "1w"
 	display_max = tonumber(minetest.setting_get("sban.display_max")) or 10
-	names_per_ip = tonumber(minetest.setting_get("sban.accounts_per_ip"))
+	names_per_id = tonumber(minetest.setting_get("sban.accounts_per_id"))
 end
 
 -- db:exec wrapper for error reporting
@@ -370,10 +370,10 @@ local function display_record(name, p_name)
 		local names_hash = {}
 		local names = {}
 		for i = 1, #r do
-			local name = r[i].name
-			if not names_hash[name] then
-				names_hash[name] = true
-				names[#names + 1] = name
+			local record_name = r[i].name
+			if not names_hash[record_name] then
+				names_hash[record_name] = true
+				names[#names + 1] = record_name
 			end
 		end
 		minetest.chat_send_player(name, "Names: " .. table.concat(names, ", "))
@@ -517,7 +517,7 @@ local function ban_player(name, source, reason, expires)
 		VALUES ('%s','%s','%s','%s','%s','%s','','','','true','%s')
 	]]):format(id, name, source, ts, p_reason, expires, last_pos)
 	db_exec(stmt)
-	-- players: id,ban
+	-- players table: id,ban
 	stmt = ([[
 			UPDATE players SET ban = 'true' WHERE id = '%s'
 			]]):format(id)
@@ -540,7 +540,11 @@ local function ban_player(name, source, reason, expires)
 	-- kick all names associated with the player
 	local records = find_records_by_id(id)
 	for i, v in ipairs(records) do
-		minetest.kick_player(v.name, msg_k)
+		player = minetest.get_player_by_name(v.name)
+		if player then
+			player:set_detach()
+			minetest.kick_player(v.name, msg_k)
+		end
 	end
 end
 
@@ -1601,6 +1605,33 @@ minetest.register_chatcommand("bang", {
 	end
 })
 
+minetest.override_chatcommand("kick", {
+	params = "<name> [reason]",
+	description = "Kick a player",
+	privs = {kick=true},
+	func = function(name, param)
+		local tokick, reason = param:match("([^ ]+) (.+)")
+		tokick = tokick or param
+		local player = minetest.get_player_by_name(tokick)
+		if not player then
+			return false, "Player " .. tokick .. " not in game!"
+		end
+		if not minetest.kick_player(tokick, reason) then
+			player:set_detach()
+			if not minetest.kick_player(tokick, reason) then
+				return false, "Failed to kick player " .. tokick ..
+				" after detaching!"
+			end
+		end
+		local log_reason = ""
+		if reason then
+			log_reason = " with reason \"" .. reason .. "\""
+		end
+		minetest.log("action", name .. " kicks " .. tokick .. log_reason)
+		return true, "Kicked " .. tokick
+  end,
+})
+
 minetest.register_chatcommand("/whois", {
 	description = "Returns info on a player",
 	privs = {ban_admin = true},
@@ -1655,10 +1686,10 @@ minetest.register_on_prejoinplayer(function(name, ip)
 	local id = get_id(name) or get_id(ip)
 
 	if id == nil then return end -- no record
-	
+
 	local banned = active_ban(id)
 	if not banned then
-		if names_per_ip then
+		if names_per_id then
 			-- names per ip
 			local names = account_names(id)
 			-- allow existing
@@ -1666,7 +1697,7 @@ minetest.register_on_prejoinplayer(function(name, ip)
 				if v.name == name then return end
 			end
 			-- check player isn't exceeding account limit
-			if #names >= names_per_ip then
+			if #names >= names_per_id then
 				-- create string list
 				local msg = ""
 				for i,v in ipairs(names) do
@@ -1674,7 +1705,7 @@ minetest.register_on_prejoinplayer(function(name, ip)
 				end
 				msg = msg:sub(1, msg:len() - 2) -- trim trailing ','
 				return ("\nYou exceeded the limit of accounts ("..
-				names_per_ip..").\nYou already have the following accounts:\n"
+				names_per_id..").\nYou already have the following accounts:\n"
 				..msg)
 			end
 		end
