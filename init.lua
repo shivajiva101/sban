@@ -1686,7 +1686,7 @@ minetest.register_on_prejoinplayer(function(name, ip)
 	local id = get_id(name) or get_id(ip)
 
 	if id == nil then return end -- no record
-	
+
 	local banned = active_ban(id)
 	if not banned then
 		if names_per_id then
