@@ -1,7 +1,6 @@
 -- sban mod for minetest voxel game
 -- designed and coded by shivajiva101@hotmail.com
 
-local sban = {}
 local WP = minetest.get_worldpath()
 local WL
 local ie = minetest.request_insecure_environment()
@@ -48,16 +47,6 @@ end
 local function db_exec(stmt)
 	if db:exec(stmt) ~= _sql.OK then
 		minetest.log("info", "Sqlite ERROR:  "..db:errmsg())
-	end
-end
-
--- remove cached entry on unban
-local function cache_remove(id)
-	for i,v in ipairs(sban) do
-		if v.id == id then
-			table.remove(sban, i)
-			return true
-		end
 	end
 end
 
@@ -199,16 +188,43 @@ local function check_ban(id)
 	return row
 end
 
-local function find_active_bans()
-	local r,q = {}
-	q = [[SELECT id,
-	 	reason,
-		expires
-		FROM bans WHERE active = 'true']]
-	for row in db:nrows(q) do
-		r[#r+1] = row
+local function is_banned(name_or_ip)
+	local q
+	if ip_checker(name_or_ip) then
+		q = ([[
+		SELECT  players.id,
+			playerdata.ip,
+			bans.reason,
+			bans.expires
+		FROM    players
+		INNER JOIN
+			bans ON players.id = bans.id
+			INNER JOIN
+			playerdata ON playerdata.id = players.id
+		WHERE   players.ban = 'true' AND
+			playerdata.ip = '%s' AND
+			bans.active = 'true' LIMIT 1;
+		]]):format(name_or_ip)
+	else
+		q = ([[
+		SELECT  players.id,
+			playerdata.ip,
+			bans.reason,
+			bans.expires
+		FROM    players
+		INNER JOIN
+			bans ON players.id = bans.id
+			INNER JOIN
+			playerdata ON playerdata.id = players.id
+		WHERE   players.ban = 'true' AND
+			playerdata.name = '%s' AND
+			bans.active = 'true' LIMIT 1;
+		]]):format(name_or_ip)
 	end
-	return r
+	-- return record
+	local it, state = db:nrows(q)
+	local row = it(state)
+	return row
 end
 
 local function list_bans(id)
@@ -506,14 +522,6 @@ local function ban_player(name, source, reason, expires)
 			UPDATE players SET ban = 'true' WHERE id = '%s'
 			]]):format(id)
 	db_exec(stmt)
-	
-	-- cache the ban
-	local t = {
-		id = id,
-		reason = reason,
-		expires = expires
-	}
-	table.add(sban, t)
 
 	local msg_k, msg_l
 	-- create kick & log messages
@@ -562,7 +570,6 @@ local function update_login(player_name)
 	db_exec(stmt)
 	end
 
-
 local function unban_player(id, source, reason, name)
 	local p_reason = parse_reason(reason)
 	local ts = os.time()
@@ -579,9 +586,6 @@ local function unban_player(id, source, reason, name)
 		WHERE id = '%i' AND active = 'true';
 	]]):format(source, p_reason, ts, id)
 	db_exec(stmt)
-	
-	cache_remove(id) -- player isn't banned, remove entry
-	
 	-- log event
 	minetest.log("action",
 	("[sban] %s unbanned by %s reason: %s"):format(name, source, reason))
@@ -612,31 +616,6 @@ local function del_whitelist(name_or_ip)
 		DELETE FROM whitelist WHERE name = '%s'
 	]]):format(name_or_ip)
 	db_exec(stmt)
-end
-
---[[
-###############
-##  Caching  ##
-###############
-]]
-
-sban = find_active_bans()
-
-local function check_cache(id)
-	for _,v in ipairs(sban) do
-		if v.id == id then return v end
-	end
-	return false
-end
-
--- remove cached entry on unban
-local function cache_remove(id)
-	for i,v in ipairs(bans) do
-		if v.id == id then
-			table.remove(bans, i)
-			return true
-		end
-	end
 end
 
 --[[
@@ -831,8 +810,8 @@ local function import_ipban(source)
 				create_entry(name, ip)
 			end
 			-- check for existing ban
-			local r = qbc(name)
-			if not r then
+			local r = is_banned(name)
+			if #r == 0 then
 				-- create ban entry - name,source,reason,expires
 				ban_player(name, source, "imported from ipban.txt", '')
 			end
@@ -1703,8 +1682,7 @@ minetest.register_on_prejoinplayer(function(name, ip)
 		name.." whitelisted entry permits login")
 		return
 	end
-	
-	-- Check for id
+	-- Attempt to retieve id
 	local id = get_id(name) or get_id(ip)
 
 	if id == nil then return end -- no record
@@ -1744,11 +1722,8 @@ minetest.register_on_prejoinplayer(function(name, ip)
 	end
 
 	-- Retrieve player record
-	if not id then return end
-	local data = check_cache(id)
-	if not data then return end
-	local date = "the end of time"
-		
+	local data = check_ban(id)
+	local date
 	-- check for ban expiry
 	if data and type(data.expires) == "number" and data.expires ~= 0 then
 		-- temp ban
@@ -1758,8 +1733,9 @@ minetest.register_on_prejoinplayer(function(name, ip)
 			return
 		end
 		date = hrdf(data.expires)
+	else
+		date = "the end of time"
 	end
-		
 	return ("Banned: Expires: %s, Reason: %s"):format(date, data.reason)
 end)
 
