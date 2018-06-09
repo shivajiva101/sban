@@ -1690,6 +1690,8 @@ minetest.register_on_prejoinplayer(function(name, ip)
 	local banned = active_ban(id)
 	if not banned then
 		if names_per_id then
+			-- owner exemption
+			if name == owner then return end
 			-- names per ip
 			local names = account_names(id)
 			-- allow existing
