@@ -6,6 +6,7 @@ local WL
 local ie = minetest.request_insecure_environment()
 local ESC = minetest.formspec_escape
 local hotlist = {}
+local owner_id
 
 if not ie then
 	error("insecure environment inaccessible"..
@@ -675,6 +676,7 @@ if get_version() == nil then
 end
 
 WL = get_whitelist()
+owner_id = get_id(owner)
 
 local function import_xban(name, file_name)
 
@@ -1686,6 +1688,7 @@ minetest.register_on_prejoinplayer(function(name, ip)
 	local id = get_id(name) or get_id(ip)
 
 	if id == nil then return end -- no record
+	if owner_id and owner_id == id then return end -- exempt owners id
 
 	local banned = active_ban(id)
 	if not banned then
@@ -1747,28 +1750,31 @@ minetest.register_on_joinplayer(function(player)
 	if not ip then return end
 	local record = find_records(name)
 	local ip_record
+	local id = get_id(name)
 
 	hotlistp(name)
 
-	-- check for player name entry
-	if #record == 0 then
-		-- no records, check for ip
-		ip_record = find_records(ip)
-		if #ip_record == 0 then
-			-- create new entry
-			create_entry(name, ip)
+	-- check for a record match based on name
+	if not id then
+		-- no records, check if ip record exists
+		id = get_id(ip)
+		if not id then
+			-- no records, create new entry
+			id = create_entry(name, ip)
+			if not owner_id and name == owner then
+				owner_id = id -- initialise
+			end
 			return
 		else
-			-- add record [new name]
-			add_player(ip_record[1].id, name, ip)
+			-- add record for new name
+			add_player(id, name, ip)
 			return
 		end
 	else
 		-- check for ip record
-		ip_record = find_records(ip)
-		if #ip_record == 0 then
-			-- add record [player is using a new ip]
-			add_player(record[1].id, name, ip)
+		if not get_id(ip) then
+			-- record ip
+			add_player(id, name, ip)
 			return
 		end
 		-- update record
