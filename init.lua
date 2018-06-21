@@ -1748,8 +1748,6 @@ minetest.register_on_joinplayer(function(player)
 	local name = player:get_player_name()
 	local ip = minetest.get_player_ip(name)
 	if not ip then return end
-	local record = find_records(name)
-	local ip_record
 	local id = get_id(name)
 
 	hotlistp(name)
