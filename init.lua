@@ -253,43 +253,6 @@ local function list_bans(id)
 	return r
 end
 
-local function find_records(name_or_ip)
-	local r,q = {}
-	if ip_checker(name_or_ip) then
-		-- construct
-		q = ([[
-			SELECT  players.id,
-				players.ban,
-				playerdata.name,
-				playerdata.ip,
-				playerdata.created,
-				playerdata.last_login
-			FROM players
-			INNER JOIN
-				playerdata ON playerdata.id = players.id
-			WHERE playerdata.ip = '%s';
-		]]):format(name_or_ip)
-	else
-		q = ([[
-			SELECT  players.id,
-				players.ban,
-				playerdata.name,
-				playerdata.ip,
-				playerdata.created,
-				playerdata.last_login
-			FROM players
-			INNER JOIN
-				playerdata ON playerdata.id = players.id
-			WHERE playerdata.name = '%s';
-		]]):format(name_or_ip)
-	end
-	-- fill return table
-	for row in db:nrows(q) do
-		r[#r + 1] = row
-	end
-	return r
-end
-
 local function find_records_by_id(id)
 	local r = {}
 	local q = ([[
