@@ -1509,7 +1509,7 @@ minetest.register_chatcommand("tempban", {
 				return false, "Player doesn't exist!"
 			end
 			-- create entry before ban
-			create_entry(player_name, "0.0.0.0")
+			id = create_entry(player_name, "0.0.0.0") -- arbritary ip
 			ban_player(player_name, name, reason, expires)
 			if not(active_ban(id) and active_ban_record(id)) then
 				minetest.log("error", "Failed to ban "..player_name)
