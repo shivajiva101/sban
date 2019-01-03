@@ -1,6 +1,8 @@
 -- sban mod for minetest voxel game
 -- designed and coded by shivajiva101@hotmail.com
 
+sban = {}
+
 local WP = minetest.get_worldpath()
 local WL
 local ie = minetest.request_insecure_environment()
@@ -107,7 +109,7 @@ db_exec(createDb)
 ###########################
 ]]
 
-local function get_id(name_or_ip)
+function sban.get_id(name_or_ip)
 	local q
 	if ip_checker(name_or_ip) then
 		q = ([[
@@ -133,7 +135,7 @@ local function get_id(name_or_ip)
 	end
 end
 
-local function next_id()
+function sban.next_id()
 	local q = [[SELECT seq FROM sqlite_sequence WHERE name= "players"]]
 	-- returns an integer for last id
 	local it, state = db:nrows(q)
@@ -143,7 +145,7 @@ local function next_id()
 	end
 end
 
-local function active_ban(id)
+function sban.active_ban(id)
 	local q = ([[
 		SELECT ban
 		FROM players
@@ -156,7 +158,7 @@ local function active_ban(id)
 	return result
 end
 
-local function active_ban_record(id)
+function sban.active_ban_record(id)
 	local q = ([[
 		SELECT active
 		FROM bans
@@ -168,7 +170,7 @@ local function active_ban_record(id)
 	return row ~= nil
 end
 
-local function check_ban(id)
+function sban.check_ban(id)
 	local q = ([[
 		SELECT  players.id,
 			playerdata.ip,
@@ -189,7 +191,7 @@ local function check_ban(id)
 	return row
 end
 
-local function is_banned(name_or_ip)
+function sban.is_banned(name_or_ip)
 	local q
 	if ip_checker(name_or_ip) then
 		q = ([[
@@ -228,7 +230,7 @@ local function is_banned(name_or_ip)
 	return row
 end
 
-local function list_bans(id)
+function sban.list_bans(id)
 	local r = {}
 	local q = ([[
 	SELECT
@@ -253,7 +255,7 @@ local function list_bans(id)
 	return r
 end
 
-local function find_records_by_id(id)
+function sban.find_records_by_id(id)
 	local r = {}
 	local q = ([[
 		SELECT  players.id,
@@ -273,7 +275,7 @@ local function find_records_by_id(id)
 	return r
 end
 
-local function get_whitelist()
+function sban.get_whitelist()
 	local r = {}
 	local query = "SELECT * FROM whitelist"
 	for row in db:nrows(query) do
@@ -282,7 +284,7 @@ local function get_whitelist()
 	return r
 end
 
-local function get_version()
+function sban.get_version()
 	local query = "SELECT * FROM version"
 	local it, state = db:nrows(query)
 	local row = it(state)
@@ -291,7 +293,7 @@ local function get_version()
 	end
 end
 
-local function account_ips(id)
+function sban.account_ips(id)
 	local r,q = {}
 	-- construct query
 	q = ([[
@@ -306,7 +308,7 @@ local function account_ips(id)
 	return r
 end
 
-local function account_names(id)
+function sban.account_names(id)
 	local r,q = {}
 	-- construct query
 	q = ([[
@@ -321,9 +323,9 @@ local function account_names(id)
 	return r
 end
 
-local function display_record(name, p_name)
-	local id = get_id(p_name)
-	local r = find_records_by_id(id)
+function sban.display_record(name, p_name)
+	local id = sban.get_id(p_name)
+	local r = sban.find_records_by_id(id)
 	if #r == 0 then
 		minetest.chat_send_player(name, "No records for "..p_name)
 		return
@@ -373,7 +375,7 @@ local function display_record(name, p_name)
 		end
 	end
 
-	local t = list_bans(id) or {}
+	local t = sban.list_bans(id) or {}
 	if #t > 0 then
 		minetest.chat_send_player(name, "Ban records: "..#t)
 		local ban = t[#t].active
@@ -406,7 +408,7 @@ local function display_record(name, p_name)
 	end
 end
 
-local function get_names(name)
+function sban.get_names(name)
 	local r,t,q = {},{}
 	q = "SELECT name FROM playerdata WHERE name LIKE '%"..name.."%';"
 	for row in db:nrows(q) do
@@ -425,7 +427,7 @@ end
 ###########################
 ]]
 
-local function create_entry(player_name, ip_address)
+function sban.create_entry(player_name, ip_address)
 	-- players table id is auto incremented
 	-- id,ban
 	db_exec[[
@@ -433,7 +435,7 @@ local function create_entry(player_name, ip_address)
 		VALUES ('false')
 	]]
 	-- retrieve id
-	local id = next_id() - 1
+	local id = sban.next_id() - 1
 	-- create timestamp
 	local ts = os.time()
 	-- id,name,ip,created,last_login
@@ -445,7 +447,7 @@ local function create_entry(player_name, ip_address)
 	return id
 end
 
-local function add_player(id, player_name, ip_address)
+function sban.add_player(id, player_name, ip_address)
 	local ts = os.time()
 	local stmt = ([[
 			INSERT INTO playerdata
@@ -454,7 +456,7 @@ local function add_player(id, player_name, ip_address)
 	db_exec(stmt)
 end
 
-local function add_whitelist(source, name_or_ip)
+function sban.add_whitelist(source, name_or_ip)
 	local ts = os.time()
 	local stmt = ([[
 			INSERT INTO whitelist
@@ -463,9 +465,9 @@ local function add_whitelist(source, name_or_ip)
 	db_exec(stmt)
 end
 
-local function ban_player(name, source, reason, expires)
+function sban.ban_player(name, source, reason, expires)
 	local ts = os.time()
-	local id = get_id(name)
+	local id = sban.get_id(name)
 	local player = minetest.get_player_by_name(name)
 	local p_reason = parse_reason(reason)
 
@@ -502,7 +504,7 @@ local function ban_player(name, source, reason, expires)
 	end
 	minetest.log("action", msg_l)
 	-- kick all names associated with the player
-	local records = find_records_by_id(id)
+	local records = sban.find_records_by_id(id)
 	for i, v in ipairs(records) do
 		player = minetest.get_player_by_name(v.name)
 		if player then
@@ -512,7 +514,7 @@ local function ban_player(name, source, reason, expires)
 	end
 end
 
-local function set_version(str)
+function sban.set_version(str)
 	local stmt = ([[
 			INSERT INTO version
 			VALUES ('%s')
@@ -526,7 +528,7 @@ end
 ###########################
 ]]
 
-local function update_login(player_name)
+function sban.update_login(player_name)
 	local ts = os.time()
 	local stmt = ([[
 			UPDATE playerdata SET last_login = %s WHERE name = '%s'
@@ -534,7 +536,7 @@ local function update_login(player_name)
 	db_exec(stmt)
 	end
 
-local function unban_player(id, source, reason, name)
+function unsban.ban_player(id, source, reason, name)
 	local p_reason = parse_reason(reason)
 	local ts = os.time()
 	local stmt = ([[
@@ -555,7 +557,7 @@ local function unban_player(id, source, reason, name)
 	("[sban] %s unbanned by %s reason: %s"):format(name, source, reason))
 end
 
-local function reset_orphan_record(id)
+function sban.reset_orphan_record(id)
 	local stmt = ([[
 	UPDATE players SET ban = 'false' WHERE id = '%s';
 	]]):format(id)
@@ -568,14 +570,14 @@ end
 ##################################
 ]]
 
-local function del_ban_record(name)
+function sban.del_ban_record(name)
 	local stmt = ([[
 		DELETE FROM bans WHERE name = '%s'
 	]]):format(name)
 	db_exec(stmt)
 	end
 
-local function del_whitelist(name_or_ip)
+function sban.del_whitelist(name_or_ip)
 	local stmt = ([[
 		DELETE FROM whitelist WHERE name = '%s'
 	]]):format(name_or_ip)
@@ -634,12 +636,12 @@ end
 ]]
 
 -- initialise db version
-if get_version() == nil then
-	set_version(db_version)
+if sban.get_version() == nil then
+	sban.set_version(db_version)
 end
 
-WL = get_whitelist()
-owner_id = get_id(owner)
+WL = sban.get_whitelist()
+owner_id = sban.get_id(owner)
 
 local function import_xban(name, file_name)
 
@@ -648,7 +650,7 @@ local function import_xban(name, file_name)
 	if not t then
 		return t, err
 	end
-	local id = next_id()
+	local id = sban.next_id()
 
 	minetest.log("action", "processing "..#t.." records")
 
@@ -772,13 +774,13 @@ local function import_ipban(source)
 			end
 			if chk then
 				-- create player entry
-				create_entry(name, ip)
+				sban.create_entry(name, ip)
 			end
 			-- check for existing ban
-			local r = is_banned(name)
+			local r = sban.is_banned(name)
 			if #r == 0 then
 				-- create ban entry - name,source,reason,expires
-				ban_player(name, source, "imported from ipban.txt", '')
+				sban.ban_player(name, source, "imported from ipban.txt", '')
 			end
 		end
 	end
@@ -858,7 +860,7 @@ local function export_sql(filename)
 	-- record to balance the memory use otherwise large files
 	-- cause lua OOM error
 	local dbi = load_xban(filename)
-	local id = next_id()
+	local id = sban.next_id()
 	-- reverse the contents with #entries/2
 	for i = 1, math.floor(#dbi / 2) do
 		local tmp = dbi[i]
@@ -1126,13 +1128,13 @@ end
 local function update_state(name, selected)
 
 	local fs = get_state(name)
-	local id = get_id(selected)
+	local id = sban.get_id(selected)
 
-	fs.bans = list_bans(id)
+	fs.bans = sban.list_bans(id)
 
 	local info = "Ban records: "..#fs.bans.."\n"
 
-	fs.banned = active_ban(id)
+	fs.banned = sban.active_ban(id)
 	fs.multi = false
 
 	if #fs.bans == 0 then
@@ -1169,7 +1171,7 @@ minetest.register_on_player_receive_fields(function(player, formname, fields)
 	if fields.find then
 
 		if fields.search:len() > 2 then
-			fs.list = get_names(ESC(fields.search))
+			fs.list = sban.get_names(ESC(fields.search))
 		else
 			fs.list = fs.hlist
 		end
@@ -1206,30 +1208,30 @@ minetest.register_on_player_receive_fields(function(player, formname, fields)
 	elseif fields.ban or fields.unban or fields.tban then
 
 		local selected = fs.list[fs.index]
-		local id = get_id(selected)
+		local id = sban.get_id(selected)
 
 		if fields.reason ~= "" then
 			if fields.ban then
 				if selected == owner then
 					fs.info = "you do not have permission to do that!"
 				else
-					ban_player(selected, name, ESC(fields.reason), '')
-					local q = active_ban(id)
-					if not (q and active_ban_record(id)) then
+					sban.ban_player(selected, name, ESC(fields.reason), '')
+					local q = sban.active_ban(id)
+					if not (q and sban.active_ban_record(id)) then
 						fs.info = "Warning: failed to ban "..selected
 					end
 				end
 			elseif fields.unban then
-				unban_player(id, name, ESC(fields.reason), selected)
-				fs.bans = list_bans(id)
+				unsban.ban_player(id, name, ESC(fields.reason), selected)
+				fs.bans = sban.list_bans(id)
 			elseif fields.tban then
 				if selected == owner then
 					fs.info = "you do not have permission to do that!"
 				else
 					local  t = parse_time(ESC(fields.duration)) + os.time()
-					ban_player(selected, name, ESC(fields.reason), t)
-					local q = active_ban(id)
-					if not (q and active_ban_record(id)) then
+					sban.ban_player(selected, name, ESC(fields.reason), t)
+					local q = sban.active_ban(id)
+					if not (q and sban.active_ban_record(id)) then
 						fs.info = "Warning: failed to ban "..selected
 					end
 				end
@@ -1264,15 +1266,15 @@ minetest.override_chatcommand("ban", {
 			return false, "Insufficient privileges!"
 		end
 		local expires = ''
-		local id = get_id(player_name)
+		local id = sban.get_id(player_name)
 		-- handle known/unknown players dependant on privs
 		if id then
 			-- banned player?
-			if active_ban(id) then
-				if active_ban_record(id) then
+			if sban.active_ban(id) then
+				if sban.active_ban_record(id) then
 					return true, ("%s is already banned!"):format(player_name)
 				else
-					reset_orphan_record(id)
+					sban.reset_orphan_record(id)
 					minetest.log("info",
 					"[sban] cleared orphaned ban in players table for "
 					..player_name)
@@ -1283,8 +1285,8 @@ minetest.override_chatcommand("ban", {
 				expires = parse_time(expiry) + os.time()
 			end
 			-- Params: name, source, reason, expires
-			ban_player(player_name, name, reason, expires)
-			if not (active_ban(id) and active_ban_record(id)) then
+			sban.ban_player(player_name, name, reason, expires)
+			if not (sban.active_ban(id) and sban.active_ban_record(id)) then
 				minetest.log("error", "Failed to ban "..player_name)
 				return false, ("Failed to ban %s"):format(player_name)
 			else
@@ -1297,9 +1299,9 @@ minetest.override_chatcommand("ban", {
 				return false, "Player "..player_name.." doesn't exist!"
 			end
 			-- create entry before ban
-			id = create_entry(player_name, "0.0.0.0") -- arbritary ip
-			ban_player(player_name, name, reason, expires)
-			if active_ban(id) and active_ban_record(id) then
+			id = sban.create_entry(player_name, "0.0.0.0") -- arbritary ip
+			sban.ban_player(player_name, name, reason, expires)
+			if sban.active_ban(id) and sban.active_ban_record(id) then
 				return true, ("Banned nonexistent player %s."):format(player_name)
 			else
 				minetest.log("error", "Failed to ban "..player_name)
@@ -1366,7 +1368,7 @@ minetest.register_chatcommand("ban_del", {
 		if not player_name then
 			return false, "Usage: /ban_del_record <player>"
 		end
-		del_ban_record(player_name)
+		sban.del_ban_record(player_name)
 		minetest.log("action",
 		"ban records for "..player_name.." deleted by "..name)
 		return true, player_name.." ban records deleted!"
@@ -1383,11 +1385,11 @@ minetest.register_chatcommand("ban_record", {
 			return false, "Useage: /ban_record <player_name>"
 		end
 		-- get target and source privs
-		local id = get_id(playername)
+		local id = sban.get_id(playername)
 		if not id then
 			return false, "Unknown player!"
 		end
-		local target = find_records_by_id(id)
+		local target = sban.find_records_by_id(id)
 		local source = minetest.get_player_privs(name)
 		local chk = false
 		-- If the target has server privs on any account
@@ -1401,7 +1403,7 @@ minetest.register_chatcommand("ban_record", {
 		if not source.server and chk then
 			return false, "Insufficient privileges!"
 		end
-		display_record(name, playername)
+		sban.display_record(name, playername)
 		return true
 	end
 })
@@ -1435,7 +1437,7 @@ minetest.register_chatcommand("ban_wl", {
 		if param[2] then
 			if param[1] == "add" then
 				if not WL[param[2]] then
-					add_whitelist(name, param[2])
+					sban.add_whitelist(name, param[2])
 					WL[param[2]] = true
 					minetest.log("action",
 					("%s added %s to whitelist"):format(name, param[2]))
@@ -1445,7 +1447,7 @@ minetest.register_chatcommand("ban_wl", {
 				end
 			elseif param[1] == "del" then
 				if WL[param[2]] then
-					del_whitelist(param[2])
+					sban.del_whitelist(param[2])
 					WL[param[2]] = nil
 					minetest.log("action", ("%s removed %s from whitelist"
 					):format(name, param[2]))
@@ -1481,21 +1483,21 @@ minetest.register_chatcommand("tempban", {
 		local expires = os.time() + time
 
 		-- is player already banned?
-		local id = get_id(player_name)
+		local id = sban.get_id(player_name)
 		if id then
-			if active_ban(id) then
-				if active_ban_record(id) then
+			if sban.active_ban(id) then
+				if sban.active_ban_record(id) then
 					return true, ("%s is already banned!"):format(player_name)
 				else
-					reset_orphan_record(id)
+					sban.reset_orphan_record(id)
 					minetest.log("info",
 					"[sban] cleared orphaned ban in players table for "
 					..player_name)
 				end
 			end
 
-			ban_player(player_name, name, reason, expires)
-			if not(active_ban(id) and active_ban_record(id)) then
+			sban.ban_player(player_name, name, reason, expires)
+			if not(sban.active_ban(id) and sban.active_ban_record(id)) then
 				minetest.log("error", "Failed to ban "..player_name)
 				return false, ("Failed to ban %s"):format(player_name)
 			else
@@ -1509,9 +1511,9 @@ minetest.register_chatcommand("tempban", {
 				return false, "Player doesn't exist!"
 			end
 			-- create entry before ban
-			id = create_entry(player_name, "0.0.0.0") -- arbritary ip
-			ban_player(player_name, name, reason, expires)
-			if not(active_ban(id) and active_ban_record(id)) then
+			id = sban.create_entry(player_name, "0.0.0.0") -- arbritary ip
+			sban.ban_player(player_name, name, reason, expires)
+			if not(sban.active_ban(id) and sban.active_ban_record(id)) then
 				minetest.log("error", "Failed to ban "..player_name)
 				return false, ("Failed to ban %s"):format(player_name)
 			else
@@ -1532,17 +1534,17 @@ minetest.override_chatcommand("unban", {
 		return false, "Usage: /unban <player_or_ip> <reason>"
 		end
 		-- look for records by id
-		local id = get_id(player_name)
+		local id = sban.get_id(player_name)
 		if id then
-			if not active_ban(id) then
+			if not sban.active_ban(id) then
 				return false, ("No active ban record for "..player_name)
 			end
-			local bans = list_bans(id) -- get ban records
+			local bans = sban.list_bans(id) -- get ban records
 			-- look for the active ban
 			for i, v in ipairs(bans) do
 				if v.active then
-					unban_player(id, name, reason, player_name)
-					if active_ban(id) then
+					unsban.ban_player(id, name, reason, player_name)
+					if sban.active_ban(id) then
 						minetest.log("error", "[sban] Failed to unban "..player_name)
 						return false
 					else
@@ -1604,11 +1606,11 @@ minetest.register_chatcommand("/whois", {
 		if not param then
 			return false, "Useage: /whois <player>"
 		end
-		local id = get_id(param)
+		local id = sban.get_id(param)
 		if not id then
 			return false, "The player \"" .. param .. "\" did not join yet."
 		end
-		local data = account_names(id)
+		local data = sban.account_names(id)
 		local msg1, msg2 = "", ""
 		for i, v in ipairs(data) do
 			if msg1 ~= "" then
@@ -1618,7 +1620,7 @@ minetest.register_chatcommand("/whois", {
 			end
 		end
 		msg1 = msg1 .. "\nIP Adresses: "
-		data = account_ips(id)
+		data = sban.account_ips(id)
 		for i, v in ipairs(data) do
 			if msg2 ~= "" then
 				msg2 = msg2 .. ", " .. v.ip
@@ -1648,16 +1650,16 @@ minetest.register_on_prejoinplayer(function(name, ip)
 		return
 	end
 	-- Attempt to retieve id
-	local id = get_id(name) or get_id(ip)
+	local id = sban.get_id(name) or sban.get_id(ip)
 
 	if id == nil then return end -- no record
 	if owner_id and owner_id == id then return end -- exempt owners id
 
-	local banned = active_ban(id)
+	local banned = sban.active_ban(id)
 	if not banned then
 		if names_per_id then
 			-- names per ip
-			local names = account_names(id)
+			local names = sban.account_names(id)
 			-- allow existing
 			for i,v in ipairs(names) do
 				if v.name == name then return end
@@ -1678,9 +1680,9 @@ minetest.register_on_prejoinplayer(function(name, ip)
 		return
 	else
 		-- Check
-		if not active_ban_record(id) then
+		if not sban.active_ban_record(id) then
 			-- partial record - remove
-			reset_orphan_record(id)
+			sban.reset_orphan_record(id)
 			minetest.log("info",
 			"[sban] cleared orphaned ban in players table for "
 			..name)
@@ -1688,14 +1690,14 @@ minetest.register_on_prejoinplayer(function(name, ip)
 	end
 
 	-- Retrieve player record
-	local data = check_ban(id)
+	local data = sban.check_ban(id)
 	local date
 	-- check for ban expiry
 	if data and type(data.expires) == "number" and data.expires ~= 0 then
 		-- temp ban
 		if os.time() > data.expires then
 			-- clear temp ban
-			unban_player(data.id, "sban", "ban expired", name)
+			unsban.ban_player(data.id, "sban", "ban expired", name)
 			return
 		end
 		date = hrdf(data.expires)
@@ -1709,34 +1711,34 @@ minetest.register_on_joinplayer(function(player)
 	local name = player:get_player_name()
 	local ip = minetest.get_player_ip(name)
 	if not ip then return end
-	local id = get_id(name)
+	local id = sban.get_id(name)
 
 	hotlistp(name)
 
 	-- check for a record match based on name
 	if not id then
 		-- no records, check if ip record exists
-		id = get_id(ip)
+		id = sban.get_id(ip)
 		if not id then
 			-- no records, create new entry
-			id = create_entry(name, ip)
+			id = sban.create_entry(name, ip)
 			if not owner_id and name == owner then
 				owner_id = id -- initialise
 			end
 			return
 		else
 			-- add record for new name
-			add_player(id, name, ip)
+			sban.add_player(id, name, ip)
 			return
 		end
 	else
 		-- check for ip record
-		if not get_id(ip) then
+		if not sban.get_id(ip) then
 			-- record ip
-			add_player(id, name, ip)
+			sban.add_player(id, name, ip)
 			return
 		end
 		-- update record
-		update_login(name)
+		sban.update_login(name)
 	end
 end)
