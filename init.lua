@@ -1740,3 +1740,8 @@ minetest.register_on_joinplayer(function(player)
 		update_login(name)
 	end
 end)
+
+--  Some global functions for other mods
+sban = {}
+sban.ban_player = ban_player
+sban.unban_player = unban_player
