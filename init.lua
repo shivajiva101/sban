@@ -952,18 +952,13 @@ if importer then
 		local q
 
 		for i, v in ipairs(names) do
-			q = q..("INSERT INTO name (
-				id,
-				name,
-				created,
-				last_login
-			) VALUES ('%s','%s','%s','%s');\n"
-		):format(id, v, last_seen, last_seen)
+			q = q..("INSERT INTO name (id,name,created,last_login) VALUES ('%s','%s','%s','%s');\n"
+			):format(id, v, last_seen, last_seen)
 		end
 		for i, v in ipairs(ip) do
 			-- address fields: id,ip,created
 			q = q..("INSERT INTO address (id, ip, created, last_login) VALUES ('%i','%s','%i','%i');\n"
-		):format(id, v, last_seen, last_seen)
+			):format(id, v, last_seen, last_seen)
 		end
 
 		if entry.reason then
