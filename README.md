@@ -1,15 +1,24 @@
 # sban
 
 [![Build Status](https://travis-ci.org/shivajiva101/sban.svg?branch=master)](https://travis-ci.org/shivajiva101/sban)
+#### *** WARNING ***
+As this is a dev branch the code is in a fluid state, feel free to test it as the API functions will be retained on merge.
+
+Existing users please note that to use this version you need to apply sban/tools/sban_update.sql so backup your database to somewhere safe and copy sban/tools/sban_update.sql to the world you want to appy the update to and in a terminal navigate to the world folder and use the commands:
+
+	sqlite3 sban.sqlite
+	.read sban_update.sql
+	.exit
 
 This mod is based on the concepts introduced by xban2, and expands on them
 by using an sql database instead of a serialised table file. This approach to
 ban management:
 
+* API allows other mods to access useful functions
 * Improves the robustness of the data.
 * Grants an enhanced view of player accounts and ban records.
 * Provides tiered access to player record information.
-* Provides automatic ban expiration.
+* Provides optional automatic ban expiration.
 * Provides the capability to pre-emptively ban players.
 * Offers increased accessibility via SSH connections to the database with your
 favourite database management gui.
@@ -189,12 +198,20 @@ Returns all known accounts and ip addresses asociated with a player name.
 You can add these optional settings to minetest.conf to adjust the sban mod's
 behaviour.
 
+#### sban.api
+
+Controls loading of the API functions. Default is false.
+
+	sban.api = true
+
+This would load the API functions and allow other mods access via the global sban table.
+
 #### sban.display_max
 
 Changes the maximum number of player records displayed when using the /ban_record
 command.
 
-Example: sban.display_max = 12
+	sban.display_max = 12
 
 This would increase the number of records shown from the default 10 records to 12.
 
@@ -203,23 +220,40 @@ This would increase the number of records shown from the default 10 records to 1
 Allows server owners to set an expiry date for bans. It uses the same format for
 durations as the /tempban command.
 
-Example: sban.ban_max = 90D
+	sban.ban_max = 90D
 
 In this example all permanent player bans created after the setting has been added
 to minetest.conf, and after a server restart, will expire 90 days after the ban was
 set. If required, longer ban durations can still be set with the tempban command.
 
 Please note that if you delete or adjust the setting, after restarting the server, bans
-created while the setting was active will not change and will retain their adjusted
-expiry dates.
+created while the setting was active will not change and will retain their original
+expiry date.
 
 #### sban.accounts_per_ip
 
 Restricts accounts a player can make from an ip address.
 
-Example: sban.accounts_per_ip = 5
+	sban.accounts_per_ip = 5
 
 Please note this is optional and without the setting the player accounts are unrestricted.
+
+#### sban.cache.max
+
+Maximum cached name records.
+
+	sban.cache.max = 1000
+
+If you don't add this setting sban will use the value above as the default.
+
+#### sban.cache.ttl
+
+Time in seconds to deduct from the last player to login as the cutoff point for pre caching names.
+
+	sban.cache.max = 86400
+
+If you don't add this setting sban will use the value above as the default. Disable name caching by setting to -2
+
 
 #### CREDITS
 
