@@ -1,41 +1,57 @@
-The database contains 5 tables;
+CREATE TABLE active (
+    id      INTEGER PRIMARY KEY,
+    name    VARCHAR (50),
+    source  VARCHAR (50),
+    created INTEGER,
+    reason  VARCHAR (300),
+    expires INTEGER,
+    pos     VARCHAR (50) 
+);
 
-bans
-playerdata
-players
-whitelist
-version
+CREATE TABLE address (
+    id          INTEGER,
+    ip          VARCHAR PRIMARY KEY,
+    created     INTEGER,
+    last_login  INTEGER,
+    login_count INTEGER DEFAULT (1),
+    violation   BOOLEAN
+);
 
-The players table holds the uid for the player
+CREATE TABLE config (
+    mod_version VARCHAR,
+    db_version  VARCHAR
+);
 
-bans:
-id          INTEGER NOT NULL,
-name        VARCHAR (50),
-source      VARCHAR (50),
-created     INTEGER,
-reason      STRING (300),
-expires     INTEGER,
-u_source    VARCHAR (50),
-u_date      INTEGER,
-active      BOOLEAN,
-last_pos    VARCHAR (50)
+CREATE TABLE expired (
+    id       INTEGER,
+    name     VARCHAR (50),
+    source   VARCHAR (50),
+    created  INTEGER,
+    reason   VARCHAR (300),
+    expires  INTEGER,
+    u_source VARCHAR (50),
+    u_reason VARCHAR (300),
+    u_date   INTEGER,
+    last_pos VARCHAR (50) 
+);
 
-players:
-id  INTEGER  PRIMARY KEY AUTOINCREMENT,
-ban BOOLEAN
+CREATE TABLE name (
+    id          INTEGER,
+    name        VARCHAR (50) PRIMARY KEY,
+    created     INTEGER,
+    last_login  INTEGER,
+    login_count INTEGER (6)  DEFAULT (1) 
+);
 
-playerdata:
-id          INTEGER,
-name        VARCHAR (50),
-ip          VARCHAR (50),
-created     INTEGER,
-last_login  INTEGER
+CREATE TABLE violation (
+    src_id    INTEGER (10),
+    target_id INTEGER (10),
+    ip        TEXT (20),
+    created   INTEGER (30) 
+);
 
-
-version:
-rev VARCHAR(50)
-
-whitelist:
-name    VARCHAR(50),
-source  VARCHAR(50),
-created INTEGER
+CREATE TABLE whitelist (
+    name    VARCHAR (50),
+    source  VARCHAR (50),
+    created INTEGER
+);
