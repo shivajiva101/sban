@@ -538,7 +538,7 @@ local function add_ip(id, ip)
 end
 
 -- create a new id record
-local function create_player_record(player_name, ip_address)
+local function create_player_record(name, ip)
 	ID = ID + 1
 	local ts = os.time()
 	local stmt = ([[
@@ -556,7 +556,7 @@ local function create_player_record(player_name, ip_address)
 			last_login
 		) VALUES ('%i','%s','%i','%i');
 		COMMIT;
-	]]):format(ID,player_name,ts,ts,ID,ip_address,ts,ts)
+	]]):format(ID,name,ts,ts,ID,ip,ts,ts)
 	db_exec(stmt)
 	-- cache name record
 	name_cache[name] = {
@@ -1755,13 +1755,13 @@ if api_enable then
 	end
 
 	sban.ban_status = function(name_or_ip)
-		assert(type(name) == 'string')
+		assert(type(name_or_ip) == 'string')
 		local id = get_id(name_or_ip)
 		return bans[id] ~= nil
 	end
 
 	sban.ban_record = function(name_or_ip)
-		assert(type(name) == 'string')
+		assert(type(name_or_ip) == 'string')
 		local id = get_id(name_or_ip)
 		if id then
 			return bans[id]
@@ -1849,7 +1849,7 @@ minetest.register_on_joinplayer(function(player)
 	local id = get_id(name) -- name search
 
 	manage_hotlist(name)
-
+	trim_cache()
 	if not id then
 		-- unknown name
 		id = get_id(ip) -- ip search
