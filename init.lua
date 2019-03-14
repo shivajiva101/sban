@@ -1183,6 +1183,20 @@ local function manage_hotlist(name)
 	end
 end
 
+local function process_expired_bans()
+	local ts = os.time()
+	for k,v in pairs(bans) do
+		if type(v.expires) == "number" and v.expires ~= 0 then
+			-- temp ban
+			if ts > v.expires then
+				-- clear temp ban
+				update_ban_record(v.id, "sban", "ban expired", v.name)
+			end
+		end
+	end
+end
+process_expired_bans()
+
 --[[
 ###########
 ##  GUI  ##
