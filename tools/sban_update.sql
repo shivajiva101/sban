@@ -5,7 +5,7 @@ BEGIN TRANSACTION;
 -- create tables
 
 CREATE TABLE IF NOT EXISTS address (
-	id INTEGER (10)
+	id INTEGER (10),
 	ip TEXT (50) PRIMARY KEY,
 	created INTEGER (30),
 	last_login INTEGER (30),
@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS address (
 );
 
 CREATE TABLE IF NOT EXISTS address_tmp (
-	id INTEGER (10)
+	id INTEGER (10),
 	ip TEXT (50) PRIMARY KEY ON CONFLICT IGNORE,
 	created INTEGER (30),
 	last_login INTEGER (30),
@@ -108,12 +108,11 @@ INSERT INTO active_tmp SELECT
 	last_pos
 FROM bans WHERE active = 'true';
 
-
 INSERT INTO address_tmp (id, ip, created) SELECT DISTINCT id, ip, created FROM playerdata;
 INSERT INTO name_tmp (id, name, created, last_login) SELECT DISTINCT id, name, created, last_login FROM playerdata;
 INSERT INTO config VALUES('1.1', '0.2.1');
 INSERT INTO address SELECT * FROM address_tmp;
-INSERT INTO active SELECT * FROM active _tmp;
+INSERT INTO active SELECT * FROM active_tmp;
 INSERT INTO name SELECT * FROM name_tmp;
 
 -- clean up
