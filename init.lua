@@ -1289,7 +1289,7 @@ local function update_state(name, selected)
 end
 
 local function getformspec(name)
-	-- returns the formspec string for the GUI
+
 	local fs = state[name]
 	local f
 	local list = fs.list
@@ -1298,47 +1298,56 @@ local function getformspec(name)
 		bgimg = default.gui_bg_img
 	end
 
-	f = "size[8,6.6]"
-	..bgimg
-	.."field[0.3,0.4;4.5,0.5;search;;]"
-	.."field_close_on_enter[search;false]"
-	.."button[4.5,0.1;1.5,0.5;find;Find]"
+	f = {}
+	f[#f+1] = "size[8,6.6]"
+	f[#f+1] = bgimg
+	f[#f+1] = "field[0.3,0.4;4.5,0.5;search;;]"
+	f[#f+1] = "field_close_on_enter[search;false]"
+	f[#f+1] = "button[4.5,0.1;1.5,0.5;find;Find]"
 	if #fs.list > 0 then
-		f = f.."textlist[0,0.9;2.4,3.6;plist;"
-
+		f[#f+1] = "textlist[0,0.9;2.4,3.6;plist;"
+		local tmp = {}
 		for i,v in ipairs(list) do
-			f = f..v..","
+			tmp[#tmp+1] = v
 		end
-
-		f = f:sub(1, f:len() - 1)
-		f = f..";"..fs.index.."]"
+		f[#f+1] = table.concat(tmp, ",")
+		f[#f+1] = ";"
+		f[#f+1] = fs.index
+		f[#f+1] = "]"
 	end
-	f = f.."field[0.3,6.5;4.5,0.5;reason;Reason:;]"
-	.."field_close_on_enter[reason;false]"
+	f[#f+1] = "field[0.3,6.5;4.5,0.5;reason;Reason:;]"
+	f[#f+1] = "field_close_on_enter[reason;false]"
 
 	if fs.multi == true then
-		f = f.."image_button[6,0.1;0.5,0.5;ui_left_icon.png;left;]"
-		.."image_button[7,0.1;0.5,0.5;ui_right_icon.png;right;]"
+		f[#f+1] = "image_button[6,0.1;0.5,0.5;ui_left_icon.png;left;]"
+		f[#f+1] = "image_button[7,0.1;0.5,0.5;ui_right_icon.png;right;]"
 		if fs.page > 9 then
-			f = f.."label[6.50,0.09;"..fs.page.."]"
+			f[#f+1] = "label[6.50,0.09;"
+			f[#f+1] = fs.page
+			f[#f+1] = "]"
 		else
-			f = f.."label[6.55,0.09;"..fs.page.."]"
+			f[#f+1] = "label[6.55,0.09;"
+			f[#f+1] = fs.page
+			f[#f+1] = "]"
 		end
 	end
 
-	f = f.."label[2.6,0.9;"..fs.info.."]"
+	f[#f+1] = "label[2.6,0.9;"
+	f[#f+1] = fs.info
+	f[#f+1] = "]"
 
 	if fs.banned then
-		f = f.."button[4.5,6.2;1.5,0.5;unban;Unban]"
+		f[#f+1] = "button[4.5,6.2;1.5,0.5;unban;Unban]"
 	else
-		f = f
-		.."field[0.3,5.5;2.6,0.3;duration;Duration:;"..def_duration.."]"
-		.."field_close_on_enter[duration;false]"
-		.."button[4.5,6.2;1.5,0.5;ban;Ban]"
-		.."button[6,6.2;2,0.5;tban;Temp Ban]"
+		f[#f+1] = "field[0.3,5.5;2.6,0.3;duration;Duration:;"
+		f[#f+1] = def_duration
+		f[#f+1] = "]"
+		f[#f+1] = "field_close_on_enter[duration;false]"
+		f[#f+1] = "button[4.5,6.2;1.5,0.5;ban;Ban]"
+		f[#f+1] = "button[6,6.2;2,0.5;tban;Temp Ban]"
 	end
 
-	return f
+	return table.concat(f)
 end
 
 minetest.register_on_player_receive_fields(function(player, formname, fields)
