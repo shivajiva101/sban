@@ -86,23 +86,34 @@ end
 ######################
 ]]
 
--- Log the lines modified in the db
-optbl = {
-	[_sql.UPDATE] = "UPDATE";
-    [_sql.INSERT] = "INSERT";
-    [_sql.DELETE] = "DELETE"
- }
-setmetatable(optbl,
-	{__index=function(t,n) return string.format("Unknown op %d",n) end})
+-- debugging ONLY!!!
+local dev = true
+if dev then
+	db:trace(
+		function(ud, sql)
+			minetest.log("action", "Sqlite Trace: " .. sql)
+		end
+	)
 
-udtbl = {0, 0, 0}
+	-- Log the lines modified in the db
+	optbl = {
+		[_sql.UPDATE] = "UPDATE";
+	    [_sql.INSERT] = "INSERT";
+	    [_sql.DELETE] = "DELETE"
+	 }
+	setmetatable(optbl,
+		{__index=function(t,n) return string.format("Unknown op %d",n) end})
 
-db:update_hook(
-	function(ud, op, dname, tname, rowid)
-		minetest.log("action", "[sban] " .. optbl[op] ..
-		" applied to db table " .. tname .. " on rowid " .. rowid)
-	end, udtbl
-)
+	udtbl = {0, 0, 0}
+
+	db:update_hook(
+		function(ud, op, dname, tname, rowid)
+			minetest.log("action", "[sban] " .. optbl[op] ..
+			" applied to db table " .. tname .. " on rowid " .. rowid)
+		end, udtbl
+	)
+
+end
 
 --[[
 ###################
@@ -123,7 +134,7 @@ end
 -- convert value to seconds, copied from xban2 mod and modified
 local function parse_time(t)
 	local s = 0
-	for n, u in t:gmatch("(%d+)([smhdwyDMY]?)") do
+	for n, u in t:gmatch("(%d+)([smhdwySHDWMY]?)") do
 		s = s + (tonumber(n) * (t_units[u] or 1))
 	end
 	return s
@@ -220,7 +231,7 @@ end
 local function player_ban_expired(id)
 	local r, q = {}
 	q = ([[
-	SELECT * FROM expired WHERE id = '%i'
+	SELECT * FROM expired WHERE id = %i;
 	]]):format(id)
 	for row in db:nrows(q) do
 		r[#r + 1] = row
@@ -233,7 +244,7 @@ local function name_records(id)
 	local r, q = {}
 	q = ([[
 		SELECT * FROM name
-		WHERE id = '%i' ORDER BY last_login DESC;
+		WHERE id = %i ORDER BY last_login DESC;
 		]]):format(id)
 	for row in db:nrows(q) do
 		r[#r + 1] = row
@@ -246,7 +257,7 @@ local function address_records(id)
 	local r, q = {}
 	q = ([[
 		SELECT * FROM address
-		WHERE id = '%i' ORDER BY last_login DESC;
+		WHERE id = %i ORDER BY last_login DESC;
 		]]):format(id)
 	for row in db:nrows(q) do
 		r[#r + 1] = row
@@ -258,8 +269,7 @@ end
 local function violation_records(id)
 	local r, q = {}
 	q = ([[
-		SELECT * FROM violation
-		WHERE id = '%i';
+		SELECT * FROM violation WHERE id = %i;
 		]]):format(id)
 	for row in db:nrows(q) do
 		r[#r + 1] = row
@@ -272,7 +282,7 @@ local function get_active_bans()
 	local r, q = {}
 	q = "SELECT * FROM active;"
 	for row in db:nrows(q) do
-		r[row.id] = row
+		r[tostring(row.id)] = row
 	end
 	return r
 end
@@ -280,7 +290,7 @@ end
 -- returns a keypair table of whitelisted names
 local function get_whitelist()
 	local r = {}
-	local q = "SELECT * FROM whitelist"
+	local q = "SELECT * FROM whitelist;"
 	for row in db:nrows(q) do
 		r[row.name] = true
 	end
@@ -302,9 +312,7 @@ local function account_ips(id)
 	local r,q = {}
 	-- construct query
 	q = ([[
-		SELECT ip
-		FROM address
-		WHERE id = '%i';
+		SELECT ip FROM address WHERE id = %i;
 	]]):format(id)
 	-- fill return table
 	for row in db:nrows(q) do
@@ -318,9 +326,7 @@ local function account_names(id)
 	local r,q = {}
 	-- construct query
 	q = ([[
-		SELECT name
-		FROM name
-		WHERE id = '%i';
+		SELECT name FROM name WHERE id = %i;
 	]]):format(id)
 	-- fill return table
 	for row in db:nrows(q) do
@@ -468,8 +474,7 @@ local function fetch_name_cache()
 	if last then
 		last = last.login - ttl -- adjust
 		q = ([[
-		SELECT * FROM name
-		WHERE last_login > %s
+		SELECT * FROM name WHERE last_login > %i
 		ORDER BY last_login ASC LIMIT %s;
 		]]):format(last, max_cache_records)
 		for row in db:nrows(q) do
@@ -507,19 +512,16 @@ end
 local function add_name(id, name)
 	local ts = os.time()
 	local stmt = ([[
-			INSERT INTO name (
-				id,
-				name,
-				created,
-				last_login
-		) VALUES (%i,'%s',%i,%i,);
+			INSERT INTO name (id,name,created,last_login,login_count)
+			VALUES (%i,'%s',%i,%i,1);
 	]]):format(id, name, ts, ts)
 	db_exec(stmt)
 	-- cache name record
 	name_cache[name] = {
 		id = id,
 		name = name,
-		last_login = ts
+		last_login = ts,
+		login_count = 1
 	}
 end
 
@@ -531,8 +533,10 @@ local function add_ip(id, ip)
 			id,
 			ip,
 			created,
-			last_login
-		) VALUES ('%i','%s','%i','%i');
+			last_login,
+			login_count,
+			violation
+		) VALUES (%i,'%s',%i,%i,1,0);
 	]]):format(id, ip, ts, ts)
 	db_exec(stmt)
 end
@@ -547,14 +551,17 @@ local function create_player_record(name, ip)
 			id,
 			name,
 			created,
-			last_login
-		) VALUES ('%i','%s','%i','%i');
+			last_login,
+			login_count
+		) VALUES (%i,'%s',%i,%i,1);
 		INSERT INTO address (
 			id,
 			ip,
 			created,
-			last_login
-		) VALUES ('%i','%s','%i','%i');
+			last_login,
+			login_count,
+			violation
+		) VALUES (%i,'%s',%i,%i,1,0);
 		COMMIT;
 	]]):format(ID,name,ts,ts,ID,ip,ts,ts)
 	db_exec(stmt)
@@ -571,7 +578,7 @@ end
 local function create_idv_record(src_id, target_id, ip)
 	local ts = os.time()
 	local stmt = ([[
-		INSERT INTO violation VALUES ('%i','%i','%s','%i')
+		INSERT INTO violation VALUES (%i,%i,'%s',%i)
 	]]):format(src_id, target_id, ip, ts)
 	db_exec(stmt)
 end
@@ -613,7 +620,7 @@ local function create_ban_record(name, source, reason, expires)
 
 	-- add a new record & update status of id
 	local stmt = ([[
-		INSERT INTO active VALUES ('%s','%s','%s','%s','%s','%s','%s');
+		INSERT INTO active VALUES (%i,'%s','%s',%i,'%s',%i,'%s');
 	]]):format(id, name, source, ts, p_reason, expires, last_pos)
 	db_exec(stmt)
 
@@ -676,13 +683,10 @@ local function update_login(id, name)
 	end
 	-- update Db name record
 	local stmt = ([[
-	BEGIN;
-	UPDATE name
-	SET
-	last_login = '%i',
+	UPDATE name SET
+	last_login = %i,
 	login_count = login_count + 1
 	WHERE name = '%s';
-	COMMIT;
 	]]):format(ts, name)
 	db_exec(stmt)
 end
@@ -690,34 +694,26 @@ end
 local function update_address(id, ip)
 	local ts = os.time()
 	local stmt = ([[
-	BEGIN;
 	UPDATE address
 	SET
-	last_login = '%i',
+	last_login = %i,
 	login_count = login_count + 1
-	WHERE id = '%i' AND ip = '%s';
-	COMMIT;
+	WHERE id = %i AND ip = '%s';
 	]]):format(ts, id, ip)
 	db_exec(stmt)
 end
 
-local function update_ban_record(id, source, reason, name)
+local function update_ban_record(id_key, source, reason, name)
 	reason = parse_reason(reason)
 	local ts = os.time()
-	local q = ([[ SELECT * FROM active WHERE id = '%i';]]):format(id)
-	local it, state = db:nrows(q)
-	local row = it(state)
-	-- catch expires by passing it as a string in format
+	local row = bans[id_key] -- use cached data
 	local stmt = ([[
-		BEGIN TRANSACTION;
-		INSERT INTO expired
-		VALUES ('%i','%s','%s','%i','%s','%s','%s','%s','%i','%s');
-		DELETE FROM active WHERE id = '%i';
-		COMMIT;
-	]]):format(id, row.name, row.source, row.created, row.reason,
-	row.expires, source, reason, ts, row.last_pos, id)
+		INSERT INTO expired VALUES (%i,'%s','%s',%i,'%s',%i,'%s','%s',%i,'%s');
+		DELETE FROM active WHERE id = %i;
+	]]):format(row.id, row.name, row.source, row.created, parse_reason(row.reason),
+	row.expires, source, reason, ts, row.last_pos, row.id)
 	db_exec(stmt)
-	bans[id] = nil -- update cache
+	bans[id_key] = nil -- update cache
 	-- log event
 	minetest.log("action",
 	("[sban] %s unbanned by %s reason: %s"):format(name, source, reason))
@@ -743,7 +739,7 @@ end
 
 local function del_ban_record(id)
 	local stmt = ([[
-		DELETE FROM active WHERE id = '%i'
+		DELETE FROM active WHERE id = %i
 	]]):format(id)
 	db_exec(stmt)
 	bans[id] = nil -- update cache
@@ -826,7 +822,7 @@ if importer then
 		}
 		-- add a new record & update status of id
 		local stmt = ([[
-			INSERT INTO active VALUES ('%s','%s','%s','%s','%s','%s','%s');
+			INSERT INTO active VALUES (%i,'%s','%s',%i,'%s',%i,'%s');
 		]]):format(id, name, source, ts, p_reason, expires, last_pos)
 		db_exec(stmt)
 	end
@@ -877,7 +873,7 @@ if importer then
 						-- name fields: id,name,created,last_login
 						q = ([[
 						INSERT INTO name
-						VALUES (%s, '%s', %s, %s);
+						VALUES (%i, '%s', %s, %s);
 						]]):format(id, v, last_seen, last_seen)
 						db_exec(q)
 					end
@@ -885,7 +881,7 @@ if importer then
 						-- address fields: id, ip, created
 						q = ([[
 						INSERT INTO address (id, ip, created)
-						VALUES (%s, '%s', %s);
+						VALUES (%i, '%s', %i);
 						]]):format(id, v, last_seen)
 						db_exec(q)
 					end
@@ -899,7 +895,7 @@ if importer then
 						local expires = v.expires or ""
 						q = ([[
 						INSERT INTO active
-						VALUES ('%s','%s','%s','%s','%s','%s','%s');
+						VALUES (%i,'%s','%s',%i,'%s',%i,'%s');
 						]]):format(id, names[1], v.source, v.time,
 						parse_reason(v.reason), expires, last_pos)
 						db_exec(q)
@@ -952,12 +948,12 @@ if importer then
 		local q
 
 		for i, v in ipairs(names) do
-			q = q..("INSERT INTO name (id,name,created,last_login) VALUES ('%s','%s','%s','%s');\n"
+			q = q..("INSERT INTO name (id,name,created,last_login) VALUES (%i,'%s',%i,%i);\n"
 			):format(id, v, last_seen, last_seen)
 		end
 		for i, v in ipairs(ip) do
 			-- address fields: id,ip,created
-			q = q..("INSERT INTO address (id, ip, created, last_login) VALUES ('%i','%s','%i','%i');\n"
+			q = q..("INSERT INTO address (id, ip, created, last_login) VALUES (%i,'%s',%i,%i);\n"
 			):format(id, v, last_seen, last_seen)
 		end
 
@@ -972,7 +968,7 @@ if importer then
 				local expires = v.expires or ""
 				local reason = string.gsub(v.reason, "'", "''")
 				reason = string.gsub(reason, "%:%)", "")
-				q = q..("INSERT INTO active VALUES ('%i','%s','%s','%i','%s','%i','%s');\n"
+				q = q..("INSERT INTO active VALUES (%i,'%s','%s',%i,'%s',%i,'%s');\n"
 				):format(id, names[1], v.source, v.time, reason, expires, last_pos)
 			end
 		end
@@ -1028,16 +1024,16 @@ if importer then
 			}
 			local t = {}
 			local q = ([[SELECT * FROM name
-			WHERE id = '%i']]):format(id)
+			WHERE id = %i]]):format(id)
 			for row in db:nrows(q) do
 				xport[id].names[row.name] = true
 			end
 			q = ([[SELECT * FROM address
-			WHERE id = '%i']]):format(id)
+			WHERE id = %i]]):format(id)
 			for row in db:nrows(q) do
 				xport[id].names[row.ip] = true
 			end
-			q = ([[SELECT * FROM expired WHERE id = '%i';]]):format(id)
+			q = ([[SELECT * FROM expired WHERE id = %i;]]):format(id)
 			for row in db:nrows(q) do
 				t[#t+1] = {
 					time = row.created,
@@ -1185,12 +1181,12 @@ end
 
 local function process_expired_bans()
 	local ts = os.time()
-	for k,v in pairs(bans) do
-		if type(v.expires) == "number" and v.expires ~= 0 then
+	for id_key,row in pairs(bans) do
+		if type(row.expires) == "number" and row.expires ~= 0 then
 			-- temp ban
-			if ts > v.expires then
+			if ts > row.expires then
 				-- clear temp ban
-				update_ban_record(v.id, "sban", "ban expired", v.name)
+				update_ban_record(id_key, "sban", "ban expired", row.name)
 			end
 		end
 	end
