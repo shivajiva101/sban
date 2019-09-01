@@ -42,14 +42,13 @@ local DB = WP.."/sban.sqlite"
 local db_version = '0.2.1'
 local db = _sql.open(DB) -- connection
 local expiry, owner, owner_id, def_duration, display_max, names_per_id
-local importer, ID, HL_Max, api_enable, max_cache_records, ttl, cap
+local importer, ID, HL_Max, max_cache_records, ttl, cap
 local state = {}
 local t_units = {
 	s = 1, S=1, m = 60, h = 3600, H = 3600,
 	d = 86400, D = 86400, w = 604800, W = 604800,
 	M = 2592000, y = 31104000, Y = 31104000, [""] = 1
 }
-local cap
 
 sban = {}
 
@@ -170,7 +169,8 @@ end
 -- @param str String input
 -- @return escaped string
 local function escape_string(str)
-	local result = str:gsub("'", "''")
+	local result
+	result = str:gsub("'", "''")
 	result = str:gsub('_', '')
 	return result
 end
@@ -1195,7 +1195,7 @@ if importer then
 		description = "export db to xban2 format",
 		privs = {server = true},
 		func = function(name)
-			export_xban()
+			export_to_xban()
 			return true, "dumped db to xban2 file!"
 		end
 	})
