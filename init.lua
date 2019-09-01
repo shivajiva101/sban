@@ -33,19 +33,23 @@ minetest.register_privilege("ban_admin", {
 local WP = minetest.get_worldpath()
 local WL -- whitelist cache
 local ESC = minetest.formspec_escape
+local FORMNAME = "sban:main"
 local bans = {}
 local name_cache = {}
+local ip_cache = {}
 local hotlist = {}
 local DB = WP.."/sban.sqlite"
 local db_version = '0.2.1'
 local db = _sql.open(DB) -- connection
 local expiry, owner, owner_id, def_duration, display_max, names_per_id
 local importer, ID, HL_Max, api_enable, max_cache_records, ttl, cap
+local state = {}
 local t_units = {
 	s = 1, S=1, m = 60, h = 3600, H = 3600,
 	d = 86400, D = 86400, w = 604800, W = 604800,
 	M = 2592000, y = 31104000, Y = 31104000, [""] = 1
 }
+local cap
 
 sban = {}
 
@@ -87,7 +91,7 @@ end
 ]]
 
 -- debugging ONLY!!!
-local dev = true
+local dev = true -- change this to false for release
 if dev then
 	db:trace(
 		function(ud, sql)
@@ -121,7 +125,9 @@ end
 ###################
 ]]
 
--- db:exec wrapper for error reporting
+-- Db wrapper for error reporting
+-- @param stmt String containing SQL statements
+-- @return error String or Boolean true
 local function db_exec(stmt)
 	if db:exec(stmt) ~= _sql.OK then
 		minetest.log("error", "Sqlite ERROR:  "..db:errmsg())
@@ -131,34 +137,52 @@ local function db_exec(stmt)
 	end
 end
 
--- convert value to seconds, copied from xban2 mod and modified
-local function parse_time(t)
+-- Convert value to seconds (src: xban2)
+-- @param t String containing alphanumerical duration
+-- @return Integer seconds of duration
+local function parse_time(str)
 	local s = 0
-	for n, u in t:gmatch("(%d+)([smhdwySHDWMY]?)") do
+	for n, u in str:gmatch("(%d+)([smhdwySHDWMY]?)") do
 		s = s + (tonumber(n) * (t_units[u] or 1))
 	end
 	return s
 end
 
--- human readable date format - converts UTC
-local function hrdf(t)
-	if type(t) == "number" then
-		return (t and os.date("%c", t))
+-- Convert UTC to human readable date format
+-- @param utc_int Integer, seconds since epoch
+-- @return String containing datetime
+local function hrdf(utc_int)
+	if type(utc_int) == "number" then
+		return = (utc_int and os.date("%c", utc_int))
 	end
 end
 
--- checks if string param is an ip address
+-- Check if param is an ip address
+-- @paran str String
+-- @return true if ip else nil
 local function is_ip(str)
 	if str:find(":") or str:find("%.") then
 		return true
 	end
 end
 
--- check and escape special chars in reason string
-local function parse_reason(str)
-	return string.gsub(str, "'", "''")
+-- Escape special chars in reason string
+-- @param str String input
+-- @return escaped string
+local function escape_string(str)
+	local result = str:gsub("'", "''")
+	result = str:gsub('_', '')
+	return result
 end
 
+-- format ip string
+-- @param str String input
+-- @return formatted String
+local function ip_key(str)
+	local result = str:gsub("%.", "")
+	result:gsub('%:', '')
+	return result
+end
 --[[
 #################################
 ###  Database: Create Tables  ###
@@ -190,20 +214,28 @@ db_exec(createDb)
 ###########################
 ]]
 
--- returns an id for an ip or name string
+-- Fetch an id for an ip or name
+-- @param name_or_ip string
+-- @returns id integer
 local function get_id(name_or_ip)
 	local q
 	if is_ip(name_or_ip) then
+		-- check cache first
+		if ip_cache[ip_key(name_or_ip)] then
+			return ip_cache[ip_key(name_or_ip)]
+		end
+		-- check db
 		q = ([[
 			SELECT id
 			FROM address
 			WHERE ip = '%s' LIMIT 1;]]
 		):format(name_or_ip)
 	else
-		-- check if id is cached first
+		-- check cache first
 		if name_cache[name_or_ip] then
 			return name_cache[name_or_ip].id
 		end
+		-- check db
 		q = ([[
 			SELECT id
 			FROM name
@@ -217,7 +249,8 @@ local function get_id(name_or_ip)
 	end
 end
 
--- returns the last id from the name table
+-- Fetch last id from the name table
+-- @return last id integer
 local function last_id()
 	local q = "SELECT MAX(id) AS id FROM name;"
 	local it, state = db:nrows(q)
@@ -227,7 +260,9 @@ local function last_id()
 	end
 end
 
--- returns a table of expired id ban records
+-- Fetch expired ban records
+-- @param id integer
+-- @return ipair table of expired ban records
 local function player_ban_expired(id)
 	local r, q = {}
 	q = ([[
@@ -239,7 +274,9 @@ local function player_ban_expired(id)
 	return r
 end
 
--- returns a table of id name records
+-- Fetch name records
+-- @param id integer
+-- @return ipair table of name records
 local function name_records(id)
 	local r, q = {}
 	q = ([[
@@ -252,7 +289,9 @@ local function name_records(id)
 	return r
 end
 
--- returns a table of id address records
+-- Fetch address records
+-- @param id integer
+-- @return ipair table of ip address records
 local function address_records(id)
 	local r, q = {}
 	q = ([[
@@ -265,7 +304,9 @@ local function address_records(id)
 	return r
 end
 
--- returns a table of id violation records
+-- Fetch violation records
+-- @param id integer
+-- @return ipair table of violation records
 local function violation_records(id)
 	local r, q = {}
 	q = ([[
@@ -277,7 +318,8 @@ local function violation_records(id)
 	return r
 end
 
--- returns a table of active bans
+-- Fetch active bans
+-- @return keypair table
 local function get_active_bans()
 	local r, q = {}
 	q = "SELECT * FROM active;"
@@ -287,7 +329,8 @@ local function get_active_bans()
 	return r
 end
 
--- returns a keypair table of whitelisted names
+-- Fetch whitelist
+-- @return keypair table
 local function get_whitelist()
 	local r = {}
 	local q = "SELECT * FROM whitelist;"
@@ -297,7 +340,9 @@ local function get_whitelist()
 	return r
 end
 
--- returns a string from the config table
+-- Fetch config setting
+-- @param str setting name string
+-- @return setting string
 local function get_setting(str)
 	local q = ([[SELECT %s FROM config;]]):format(str)
 	local it, state = db:nrows(q)
@@ -307,42 +352,17 @@ local function get_setting(str)
 	end
 end
 
--- returns a table of ip's for an id
-local function account_ips(id)
-	local r,q = {}
-	-- construct query
-	q = ([[
-		SELECT ip FROM address WHERE id = %i;
-	]]):format(id)
-	-- fill return table
-	for row in db:nrows(q) do
-		r[#r + 1] = row
-	end
-	return r
-end
+-- Display player data on the console
+-- @param caller name string
+-- @param target name string
+-- @return nil
+local function display_record(caller, target)
 
--- returns a table of names for an id
-local function account_names(id)
-	local r,q = {}
-	-- construct query
-	q = ([[
-		SELECT name FROM name WHERE id = %i;
-	]]):format(id)
-	-- fill return table
-	for row in db:nrows(q) do
-		r[#r + 1] = row
-	end
-	return r
-end
-
--- console based display of player data
-local function display_record(name, p_name)
-
-	local id = get_id(p_name)
+	local id = get_id(target)
 	local r = name_records(id)
 
 	if not r then
-		minetest.chat_send_player(name, "No records for "..p_name)
+		minetest.chat_send_player(caller, "No records for "..target)
 		return
 	end
 
@@ -351,24 +371,23 @@ local function display_record(name, p_name)
 	for i,v in ipairs(r) do
 		table.insert(names, v.name)
 	end
-	minetest.chat_send_player(name, "\nNames: " .. table.concat(names, ", "))
+	minetest.chat_send_player(caller, "\nNames: " .. table.concat(names, ", "))
 
-	local privs = minetest.get_player_privs(name)
+	local privs = minetest.get_player_privs(caller)
 
 	-- records loaded, display
 	local idx = 1
 	if #r > display_max then
 		idx = #r - display_max
-		minetest.chat_send_player(name,
+		minetest.chat_send_player(caller,
 		"\nPlayer records: "..#r.." (showing last "..display_max.." records)\n")
 	else
-		minetest.chat_send_player(name,
-		"\nPlayer records: "..#r.."\n")
+		minetest.chat_send_player(caller, "\nPlayer records: "..#r.."\n")
 	end
 	for i = idx, #r do
 		local d1 = hrdf(r[i].created)
 		local d2 = hrdf(r[i].last_login)
-		minetest.chat_send_player(name,
+		minetest.chat_send_player(caller,
 			("[%s] Name: %s Created: %s Last login: %s\n"
 		):format(i, r[i].name, d1, d2))
 	end
@@ -377,37 +396,37 @@ local function display_record(name, p_name)
 		r = address_records(id)
 		if #r > display_max then
 			idx = #r - display_max
-			minetest.chat_send_player(name,
+			minetest.chat_send_player(caller,
 			"\nPlayer records: " .. #r ..
 			" (showing last " .. display_max .. " records)\n")
 		else
-			minetest.chat_send_player(name,
+			minetest.chat_send_player(caller,
 			"\nPlayer records: " .. #r .. "\n")
 		end
 		for i = idx, #r do
 			-- format utc values
 			local d = hrdf(r[i].created)
-			minetest.chat_send_player(name,
+			minetest.chat_send_player(caller,
 				("[%s] IP: %s Created: %s\n"
 			):format(i, r[i].ip, d))
 		end
 		r = violation_records(id)
 		if r then
-			minetest.chat_send_player(name, "\nViolation records: " .. #r .. "\n")
+			minetest.chat_send_player(caller, "\nViolation records: " .. #r .. "\n")
 			for i,v in ipairs(r) do
-				minetest.chat_send_player(name,
+				minetest.chat_send_player(caller,
 				("[%s] ID: %s IP: %s Created: %s\n"):format(i, v.target_id, v.ip, v.created))
 			end
 		else
-			minetest.chat_send_player(name, "\nNo violation records for " .. p_name .. "\n")
+			minetest.chat_send_player(caller, "\nNo violation records for " .. target .. "\n")
 		end
 	end
 
 	r = player_ban_expired(id) or {}
-	minetest.chat_send_player(name, "\nBan History:")
+	minetest.chat_send_player(caller, "\nBan History:")
 	if #r > 0 then
 
-		minetest.chat_send_player(name, "\nrecords: "..#r.."\n")
+		minetest.chat_send_player(caller, "\nrecords: "..#r.."\n")
 
 		for i, e in ipairs(r) do
 			local d1 = hrdf(e.created)
@@ -417,40 +436,42 @@ local function display_record(name, p_name)
 			end
 			if type(e.u_date) == "number" and e.u_date > 0 then
 				local d2 = hrdf(e.u_date)
-				minetest.chat_send_player(name,
+				minetest.chat_send_player(caller,
 					("[%s] Name: %s Created: %s Banned by: %s Reason: %s Expires: %s\n"
 				):format(i, e.name, d1, e.source, e.reason, expires))
-				minetest.chat_send_player(name,
+				minetest.chat_send_player(caller,
 					("[%s] Unbanned by: %s Reason: %s Time: %s"
 				):format(i, e.u_source, e.u_reason, d2))
 			else
-				minetest.chat_send_player(name,
+				minetest.chat_send_player(caller,
 					("[%s] Name: %s Created: %s Banned by: %s Reason: %s Expires: %s\n"
 				):format(i, e.name, d1, e.source, e.reason, expires))
 			end
 		end
 
 	else
-		minetest.chat_send_player(name, "\nNo ban records!")
+		minetest.chat_send_player(caller, "\nNo ban records!")
 	end
 
 	r = bans[id]
 	local ban = tostring(r ~= nil)
-	minetest.chat_send_player(name, "Current Status:")
+	minetest.chat_send_player(caller, "Current Status:")
 	if ban == 'true' then
 		local expires = "never"
 		local d = hrdf(r.created)
 		if type(r.expires) == "number" then
 			expires = hrdf(r.expires)
 		end
-		minetest.chat_send_player(name,
+		minetest.chat_send_player(caller,
 			("\nName: %s Created: %s Banned by: %s Reason: %s Expires: %s"
 		):format(r.name, d, r.source, r.reason, expires))
 	end
-	minetest.chat_send_player(name, "\nBanned: "..ban)
+	minetest.chat_send_player(caller, "\nBanned: "..ban)
 end
 
--- returns a keypair table of names like 'name'
+-- Fetch names like 'name'
+-- @param name string
+-- @return keypair table of names
 local function get_names(name)
 	local r,t,q = {},{}
 	q = "SELECT name FROM name WHERE name LIKE '%"..name.."%';"
@@ -464,9 +485,9 @@ local function get_names(name)
 	return r
 end
 
--- Cache handling
-cap = 0
-local function fetch_name_cache()
+-- Build name and address cache
+-- @return nil
+local function build_cache()
 	-- get last login timestamp
 	local q = "SELECT max(last_login) AS login FROM name;"
 	local it, state = db:nrows(q)
@@ -482,20 +503,34 @@ local function fetch_name_cache()
 			cap = cap + 1
 		end
 		minetest.log("action", "[sban] caching " .. cap .. " name records")
+		local ctr = 0
+		for k, row in pairs(name_cache) do
+			for _,v in ipairs(address_records(row.id)) do
+				ip_cache[ip_key(v)] = row.id
+				ctr = ctr + 1
+			end
+		end
+		minetest.log("action", "[sban] caching " .. ctr .. " ip records")
 	end
 end
-fetch_name_cache()
+build_cache()
 
+-- Trims cache when size is exceeded
+-- @return nil
 local function trim_cache()
-	-- return if cache isn't full
 	if cap < max_cache_records then return end
-	-- find the oldest entry and remove it
 	local entry = os.time()
-	local name
+	local name, id
 	for key, data in pairs(name_cache) do
 		if data.last_login < entry then
 			entry = data.last_login
 			name = key
+			id = data.id
+		end
+	end
+	for k,v in pairs(ip_cache) do
+		if v == id then
+			ip_cache[k] = nil
 		end
 	end
 	name_cache[name] = nil
@@ -508,7 +543,10 @@ end
 ###########################
 ]]
 
--- create a new name record for a known id
+-- Create and cache name record
+-- @param id integer
+-- @param name string
+-- @return nil
 local function add_name(id, name)
 	local ts = os.time()
 	local stmt = ([[
@@ -525,7 +563,10 @@ local function add_name(id, name)
 	}
 end
 
--- create a new ip record for a known id
+-- Create and cache ip record
+-- @param id integer
+-- @param ip string
+-- @return nil
 local function add_ip(id, ip)
 	local ts = os.time()
 	local stmt = ([[
@@ -539,9 +580,14 @@ local function add_ip(id, ip)
 		) VALUES (%i,'%s',%i,%i,1,0);
 	]]):format(id, ip, ts, ts)
 	db_exec(stmt)
+	-- cache
+	ip_cache[ip_key(ip)] = id
 end
 
--- create a new id record
+-- Create and cache id record
+-- @param name string
+-- @param ip string
+-- @return nil
 local function create_player_record(name, ip)
 	ID = ID + 1
 	local ts = os.time()
@@ -574,7 +620,11 @@ local function create_player_record(name, ip)
 	return ID
 end
 
--- create a new id violation record
+-- Create ip violation record
+-- @param src_id integer
+-- @param target_id integer
+-- @param ip string
+-- @return nil
 local function create_idv_record(src_id, target_id, ip)
 	local ts = os.time()
 	local stmt = ([[
@@ -583,7 +633,10 @@ local function create_idv_record(src_id, target_id, ip)
 	db_exec(stmt)
 end
 
--- add a new whitelist record
+-- Create whitelist record
+-- @param source name string
+-- @param name_or_ip string
+-- @return nil
 local function add_whitelist_record(source, name_or_ip)
 	local ts = os.time()
 	local stmt = ([[
@@ -593,13 +646,18 @@ local function add_whitelist_record(source, name_or_ip)
 	db_exec(stmt)
 end
 
--- create a new ban record
+-- Create ban record
+-- @param name string
+-- @param source string
+-- @param reason string
+-- @param expires integer
+-- @return nil
 local function create_ban_record(name, source, reason, expires)
 
 	local ts = os.time()
 	local id = get_id(name)
 	local player = minetest.get_player_by_name(name)
-	local p_reason = parse_reason(reason)
+	local p_reason = escape_string(reason)
 
 	-- initialise last position
 	local last_pos = ""
@@ -618,7 +676,7 @@ local function create_ban_record(name, source, reason, expires)
 		last_pos = last_pos
 	}
 
-	-- add a new record & update status of id
+	-- add record
 	local stmt = ([[
 		INSERT INTO active VALUES (%i,'%s','%s',%i,'%s',%i,'%s');
 	]]):format(id, name, source, ts, p_reason, expires, last_pos)
@@ -643,7 +701,7 @@ local function create_ban_record(name, source, reason, expires)
 	minetest.log("action", msg_l)
 
 	-- kick all player names associated with the id
-	local r = account_names(id)
+	local r = name_records(id)
 	for i, v in ipairs(r) do
 		player = minetest.get_player_by_name(v.name)
 		if player then
@@ -654,7 +712,9 @@ local function create_ban_record(name, source, reason, expires)
 	end
 end
 
--- initialise the db version
+-- initialise db version
+-- @param str version string
+-- @return nil
 local function init_version(str)
 	local stmt = ([[
 			INSERT INTO config (db_version)
@@ -669,6 +729,10 @@ end
 ###########################
 ]]
 
+-- Update login record
+-- @param id integer
+-- @param name string
+-- @return nil
 local function update_login(id, name)
 	local ts = os.time()
 	-- cache handler
@@ -691,6 +755,10 @@ local function update_login(id, name)
 	db_exec(stmt)
 end
 
+-- Update address record
+-- @param id integer
+-- @param ip string
+-- @return nil
 local function update_address(id, ip)
 	local ts = os.time()
 	local stmt = ([[
@@ -703,14 +771,20 @@ local function update_address(id, ip)
 	db_exec(stmt)
 end
 
+-- Update ban record
+-- @param id_key string
+-- @param source name string
+-- @param reason string
+-- @param name string
+-- @return nil
 local function update_ban_record(id_key, source, reason, name)
-	reason = parse_reason(reason)
+	reason = escape_string(reason)
 	local ts = os.time()
 	local row = bans[id_key] -- use cached data
 	local stmt = ([[
 		INSERT INTO expired VALUES (%i,'%s','%s',%i,'%s',%i,'%s','%s',%i,'%s');
 		DELETE FROM active WHERE id = %i;
-	]]):format(row.id, row.name, row.source, row.created, parse_reason(row.reason),
+	]]):format(row.id, row.name, row.source, row.created, escape_string(row.reason),
 	row.expires, source, reason, ts, row.last_pos, row.id)
 	db_exec(stmt)
 	bans[id_key] = nil -- update cache
@@ -719,6 +793,9 @@ local function update_ban_record(id_key, source, reason, name)
 	("[sban] %s unbanned by %s reason: %s"):format(name, source, reason))
 end
 
+-- Update violation status
+-- @param ip string
+-- @return nil
 local function update_idv_status(ip)
 	local stmt = ([[
 	BEGIN;
@@ -737,6 +814,9 @@ end
 ##################################
 ]]
 
+-- Remove ban recors
+-- @param id integer
+-- @return nil
 local function del_ban_record(id)
 	local stmt = ([[
 		DELETE FROM active WHERE id = %i
@@ -745,6 +825,9 @@ local function del_ban_record(id)
 	bans[id] = nil -- update cache
 end
 
+-- Remove whitelist entry
+-- @param name_or_ip string
+-- @return nil
 local function del_whitelist(name_or_ip)
 	local stmt = ([[
 		DELETE FROM whitelist WHERE name = '%s'
@@ -759,6 +842,9 @@ end
 ]]
 if importer then
 
+	-- Load and deserialise xban2 file
+	-- @param filename string
+	-- @return table
 	local function load_xban(filename)
 		local f, e = ie.io.open(WP.."/"..filename, "rt")
 		if not f then
@@ -767,25 +853,30 @@ if importer then
 		local content = f:read("*a")
 		f:close()
 		if not content then
-			return false, "Unable to load xban2 database: Read failed"
+			return false, "Unable to load xban2 database: Read failed!"
 		end
 		local t = minetest.deserialize(content)
 		if not t then
-			return false, "xban2 database: Deserialization failed"
+			return false, "xban2 database: Deserialization failed!"
 		end
 		return t
 	end
 
+	-- Load ipban file
+	-- @return string
 	local function load_ipban()
 		local f, e = ie.io.open(WP.."/ipban.txt")
 		if not f then
-			return false, "Unable to open `ipban.txt': "..e
+			return false, "Unable to open 'ipban.txt': "..e
 		end
 		local content = f:read("*a")
 		f:close()
 		return content
 	end
 
+	-- Write sql file
+	-- @param string containing fle contents
+	-- @return nil
 	local function save_sql(txt)
 		local file = ie.io.open(WP.."/xban.sql", "a")
 		if file then
@@ -794,44 +885,21 @@ if importer then
 		end
 	end
 
+	-- Delete sql file
+	-- @return nil
 	local function del_sql()
 		ie.os.remove(WP.."/xban.sql")
 	end
 
-	local function add_ban_record(name, source, reason, expires)
-		local ts = os.time()
-		local id = get_id(name)
-		local player = minetest.get_player_by_name(name)
-		local p_reason = parse_reason(reason)
-
-		-- initialise last position
-		local last_pos = ""
-		if player then
-			last_pos = minetest.pos_to_string(vector.round(player:getpos()))
-		end
-
-		-- add entry to ban table
-		bans[id] = {
-			id = id,
-			name = name,
-			source = source,
-			created = ts,
-			reason = reason,
-			expires = expires,
-			last_pos = last_pos
-		}
-		-- add a new record & update status of id
-		local stmt = ([[
-			INSERT INTO active VALUES (%i,'%s','%s',%i,'%s',%i,'%s');
-		]]):format(id, name, source, ts, p_reason, expires, last_pos)
-		db_exec(stmt)
-	end
-
-	local function import_xban(name, file_name)
+	-- Import xban2 file records
+	-- @param caller name string
+	-- @param file_name string
+	-- @return nil
+	local function import_xban(file_name)
 
 		local t, err = load_xban(file_name)
-		-- exit with error message
-		if not t then
+
+		if not t then -- exit with error message
 			return t, err
 		end
 
@@ -897,7 +965,7 @@ if importer then
 						INSERT INTO active
 						VALUES (%i,'%s','%s',%i,'%s',%i,'%s');
 						]]):format(id, names[1], v.source, v.time,
-						parse_reason(v.reason), expires, last_pos)
+						escape_string(v.reason), expires, last_pos)
 						db_exec(q)
 					end
 					ID = id
@@ -906,7 +974,10 @@ if importer then
 		end
 	end
 
-	local function import_ipban(source)
+	-- Import ipban file records
+	-- @param file_name string
+	-- @return nil
+	local function import_ipban(file_name)
 		local contents = load_ipban()
 		if not contents then
 			return false
@@ -924,12 +995,16 @@ if importer then
 				-- check for existing ban
 				if not bans[id] then
 					-- create ban entry - name,source,reason,expires
-					add_ban_record(name, source, "imported from ipban.txt", '')
+					create_ban_record(name, source, "imported from ipban.txt", '')
 				end
 			end
 		end
 	end
 
+	-- Create SQL string
+	-- @param id integer
+	-- @param entry keypair table
+	-- @return formatted string
 	local function sql_string(id, entry)
 		local names = {}
 		local ip = {}
@@ -975,6 +1050,9 @@ if importer then
 		return q
 	end
 
+	-- Export xban2 file to SQL file
+	-- @param filename string
+	-- @return nil
 	local function export_sql(filename)
 		-- load the db, iterate in reverse order and remove each
 		-- record to balance the memory use otherwise large files
@@ -1005,8 +1083,9 @@ if importer then
 		save_sql("END;")
 	end
 
-	local function export_xban()
-		-- export the bans to xban.db format
+	-- Export db bans to xban2 file format
+	-- @return nil
+	local function export_to_xban()
 		local xport = {}
 		local DEF_DB_FILENAME = minetest.get_worldpath().."/xban.db"
 		local DB_FILENAME = minetest.setting_get("xban.db_filename")
@@ -1095,6 +1174,7 @@ if importer then
 		if f then f:close() end
 	end
 
+	-- Register export to SQL file command
 	minetest.register_chatcommand("ban_dbe", {
 		description = "export xban2 db to sql format",
 		params = "<filename>",
@@ -1110,6 +1190,7 @@ if importer then
 		end
 	})
 
+	-- Register export to xban2 file format
 	minetest.register_chatcommand("ban_dbx", {
 		description = "export db to xban2 format",
 		privs = {server = true},
@@ -1119,6 +1200,7 @@ if importer then
 		end
 	})
 
+	-- Register import command
 	minetest.register_chatcommand("ban_dbi", {
 		description = "Import bans",
 		params = "<filename>",
@@ -1133,7 +1215,7 @@ if importer then
 				import_ipban(name)
 				msg = "ipban.txt imported!"
 			else
-				local res, err = import_xban(name, filename)
+				local res, err = import_xban(filename)
 				msg = err
 				if res then
 					msg = filename.." imported!"
@@ -1165,6 +1247,9 @@ bans = get_active_bans()
 ID = last_id() or 0
 owner_id = get_id(owner)
 
+-- Add an entry to and manage size of hotlist
+-- @param name string
+-- @return nil
 local function manage_hotlist(name)
 	for _, v in ipairs(hotlist) do
 		if v == name then
@@ -1179,6 +1264,8 @@ local function manage_hotlist(name)
 	end
 end
 
+-- Manage expired bans
+-- @return nil
 local function process_expired_bans()
 	local ts = os.time()
 	for id_key,row in pairs(bans) do
@@ -1191,7 +1278,7 @@ local function process_expired_bans()
 		end
 	end
 end
-process_expired_bans()
+process_expired_bans() -- trigger on mod load
 
 --[[
 ###########
@@ -1199,22 +1286,19 @@ process_expired_bans()
 ###########
 ]]
 
-local state = {}
-local FORMNAME = "sban:main"
-
+-- Fetch and format ban info
+-- @param entry keypair table
+-- @return formatted string
 local function create_info(entry)
 	-- returns an info string, line wrapped based on the ban record
 	if not entry then
-		return "something went wrong!\n Please reselct the entry."
+		return "something went wrong!\n Please reselect the entry."
 	end
-
 	local str = "Banned by: "..entry.source.."\n"
 		.."When: "..hrdf(entry.created).."\n"
-
 	if entry.expires ~= '' then
 		str = str.."Expires: "..hrdf(entry.expires).."\n"
 	end
-
 	str = str .."Reason: "
 	-- Word wrap
 	local words = entry.reason:split(" ")
@@ -1229,12 +1313,13 @@ local function create_info(entry)
 			ctr = wl + 1
 		end
 	end
-
 	return str
 end
 
+-- Fetch formstate, initialising if reqd
+-- @param name string
+-- @return keypair state table
 local function get_state(name)
-	-- returns form state table, initialising if reqd
 	local s = state[name]
 	if not s then
 		s = {
@@ -1253,8 +1338,12 @@ local function get_state(name)
 	return s
 end
 
+-- Update state table
+-- @param name string
+-- @param selected string
+-- @return nil
 local function update_state(name, selected)
-	-- updates the state the formspec uses
+	-- updates state used by formspec
 	local fs = get_state(name)
 	local id = get_id(selected)
 
@@ -1284,6 +1373,9 @@ local function update_state(name, selected)
 	end
 end
 
+-- Fetch user formspec
+-- @param name string
+-- @return formspec string
 local function getformspec(name)
 
 	local fs = state[name]
@@ -1346,6 +1438,7 @@ local function getformspec(name)
 	return table.concat(f)
 end
 
+-- Register form submission callbacks
 minetest.register_on_player_receive_fields(function(player, formname, fields)
 
 	if formname ~= FORMNAME then return end
@@ -1355,8 +1448,9 @@ minetest.register_on_player_receive_fields(function(player, formname, fields)
 	local fs = get_state(name)
 
 	if not privs.ban then
-		minetest.log("warning",
-				"[sban] Received fields from unauthorized user: "..name)
+		minetest.log(
+		"warning", "[sban] Received fields from unauthorized user: "..name)
+		create_ban_record(name, 'sban', 'detected using a hacked client!')
 		return
 	end
 
@@ -1435,8 +1529,9 @@ end)
 ###########################
 ]]
 
+-- Register ban command
 minetest.override_chatcommand("ban", {
-	description = "ban a player from the server",
+	description = "Bans a player from the server",
 	params = "<player> <reason>",
 	privs = { ban = true },
 	func = function(name, params)
@@ -1481,6 +1576,7 @@ minetest.override_chatcommand("ban", {
 	end
 })
 
+-- Register ban deletion command
 minetest.register_chatcommand("ban_del", {
 	description = "Deletes a player's sban records",
 	params = "player",
@@ -1501,6 +1597,7 @@ minetest.register_chatcommand("ban_del", {
 	end
 })
 
+-- Register info command
 minetest.register_chatcommand("ban_record", {
 	description = "Display player sban records",
 	params = "<player_or_ip>",
@@ -1531,6 +1628,7 @@ minetest.register_chatcommand("ban_record", {
 	end
 })
 
+-- Register whitelist command
 minetest.register_chatcommand("ban_wl", {
 	description = "Manages the whitelist",
 	params = "(add|del|list) <name_or_ip>",
@@ -1584,6 +1682,7 @@ minetest.register_chatcommand("ban_wl", {
 	end
 })
 
+-- Register temp ban command
 minetest.register_chatcommand("tempban", {
 	description = "Ban a player temporarily with sban",
 	params = "<player> <time> <reason>",
@@ -1630,6 +1729,7 @@ minetest.register_chatcommand("tempban", {
 	end,
 })
 
+-- Register unban command
 minetest.override_chatcommand("unban", {
 	description = "Unban a player or ip banned with sban",
 	params = "<player_or_ip> <reason>",
@@ -1651,6 +1751,7 @@ minetest.override_chatcommand("unban", {
 	end,
 })
 
+-- Register GUI command
 minetest.register_chatcommand("bang", {
 	description = "Launch sban gui",
 	privs = {ban = true},
@@ -1665,6 +1766,7 @@ minetest.register_chatcommand("bang", {
 	end
 })
 
+-- Register kick command (reqd for 5.0 ?)
 minetest.override_chatcommand("kick", {
 	params = "<name> [reason]",
 	description = "Kick a player",
@@ -1692,6 +1794,7 @@ minetest.override_chatcommand("kick", {
   end,
 })
 
+-- Register whois command
 minetest.register_chatcommand("/whois", {
 	description = "Returns info on a player",
 	privs = {ban_admin = true},
@@ -1703,7 +1806,7 @@ minetest.register_chatcommand("/whois", {
 		if not id then
 			return false, "The player \"" .. param .. "\" did not join yet."
 		end
-		local data = account_names(id)
+		local data = name_records(id)
 		local msg1, msg2 = "", ""
 		for i, v in ipairs(data) do
 			if msg1 ~= "" then
@@ -1713,7 +1816,7 @@ minetest.register_chatcommand("/whois", {
 			end
 		end
 		msg1 = msg1 .. "\nIP Adresses: "
-		data = account_ips(id)
+		data = address_records(id)
 		for i, v in ipairs(data) do
 			if msg2 ~= "" then
 				msg2 = msg2 .. ", " .. v.ip
@@ -1731,66 +1834,80 @@ minetest.register_chatcommand("/whois", {
 #######################
 ]]
 
--- Force the user to explicitly enable the API in minetest.conf
-if api_enable then
+-- Ban function
+-- @param name string
+-- @param source string
+-- @param reason string
+-- @param expires integer
+-- @return bool and msg string or nil
+sban.ban = function(name, source, reason, expires)
+	-- check params are valid
+	assert(type(name) == 'string')
+	assert(type(source) == 'string')
+	assert(type(reason) == 'string')
+	if expires then
+		assert(type(expires) == 'string')
+		expires = parse_time(expires)
+	end
+	local id = get_id(name)
+	if not id then
+		return false, ("No records exist for %s"):format(name)
+	elseif bans[tostring(id)] then
+		-- only one active ban per id
+		return false, ("An active record already exist for %s"):format(name)
+	end
+	-- ban player
+	create_ban_record(name, source, reason, expires)
+	return true, ("Banned %s."):format(name)
+end
 
-	sban.ban = function(name, source, reason, expires)
-		-- check params are valid
-		assert(type(name) == 'string')
-		assert(type(source) == 'string')
-		assert(type(reason) == 'string')
-		if expires then
-			assert(type(expires) == 'string')
-			expires = parse_time(expires)
+-- Unban function
+-- @param name string
+-- @param source name string
+-- @param reason string
+-- @return bool and msg string or nil
+sban.unban = function(name, source, reason)
+	-- check params are valid
+	assert(type(name) == 'string')
+	assert(type(source) == 'string')
+	assert(type(reason) == 'string')
+	-- look for records by id
+	local id = get_id(name)
+	if id then
+		if not bans[tostring(id)] then
+			return false, ("No active ban record for "..name)
 		end
-		local id = get_id(name)
-		if not id then
-			return false, ("No records exist for %s"):format(name)
-		elseif bans[id] then
-			-- only one active ban per id
-			return false, ("An active record already exist for %s"):format(name)
-		end
-		-- ban player
-		create_ban_record(name, source, reason, expires)
-		return true, ("Banned %s."):format(name)
+		update_ban_record(id, name, reason, name)
+		return true, ("Unbanned %s."):format(name)
+	else
+		return false, ("No records exist for %s"):format(name)
 	end
+end
 
-	sban.unban = function(name, source, reason)
-		-- check params are valid
-		assert(type(name) == 'string')
-		assert(type(source) == 'string')
-		assert(type(reason) == 'string')
-		-- look for records by id
-		local id = get_id(name)
-		if id then
-			if not bans[id] then
-				return false, ("No active ban record for "..name)
-			end
-			update_ban_record(id, name, reason, name)
-			return true, ("Unbanned %s."):format(name)
-		else
-			return false, ("No records exist for %s"):format(name)
-		end
+-- Fetch ban status for a player name or ip address
+-- @param name_or_ip string
+-- @return bool
+sban.ban_status = function(name_or_ip)
+	assert(type(name_or_ip) == 'string')
+	local id = get_id(name_or_ip)
+	return bans[tostring(id)] ~= nil
+end
+
+-- Fetch ban status for a player name or ip address
+-- @param name_or_ip string
+-- @return keypair table record
+sban.ban_record = function(name_or_ip)
+	assert(type(name_or_ip) == 'string')
+	local id = get_id(name_or_ip)
+	if id then
+		return bans[tostring(id)]
 	end
+end
 
-	sban.ban_status = function(name_or_ip)
-		assert(type(name_or_ip) == 'string')
-		local id = get_id(name_or_ip)
-		return bans[id] ~= nil
-	end
-
-	sban.ban_record = function(name_or_ip)
-		assert(type(name_or_ip) == 'string')
-		local id = get_id(name_or_ip)
-		if id then
-			return bans[id]
-		end
-	end
-
-	sban.list_active = function()
-		return get_active_bans()
-	end
-
+-- Fetch ban status for a player name or ip address
+-- @return keypair table of active bans
+sban.list_active = function()
+	return get_active_bans()
 end
 
 --[[
@@ -1799,10 +1916,12 @@ end
 ############################
 ]]
 
+-- Register callback for shutdown event
 minetest.register_on_shutdown(function()
 	db:close()
 end)
 
+-- Register callback for prejoin event
 minetest.register_on_prejoinplayer(function(name, ip)
 	-- whitelist bypass
 	if WL[name] or WL[ip] then
@@ -1816,12 +1935,13 @@ minetest.register_on_prejoinplayer(function(name, ip)
 	if not id then return end -- unknown player
 	if owner_id and owner_id == id then return end -- owner bypass
 
-	local data = bans[id]
+	local data = bans[tostring(id)]
+
 	if not data then
-		-- check names per id?
+		-- check names per id
 		if names_per_id then
 			-- names per id
-			local names = account_names(id)
+			local names = name_records(id)
 			-- allow existing
 			for i,v in ipairs(names) do
 				if v.name == name then return end
@@ -1860,6 +1980,7 @@ minetest.register_on_prejoinplayer(function(name, ip)
 	end
 end)
 
+-- Register callback for join event
 minetest.register_on_joinplayer(function(player)
 
 	local name = player:get_player_name()
@@ -1869,6 +1990,7 @@ minetest.register_on_joinplayer(function(player)
 
 	manage_hotlist(name)
 	trim_cache()
+
 	if not id then
 		-- unknown name
 		id = get_id(ip) -- ip search
