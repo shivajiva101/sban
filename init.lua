@@ -490,6 +490,7 @@ local function build_cache()
 	local it, state = db:nrows(q)
 	local last = it(state)
 	if last then
+		cap = cap or 0
 		last = last.login - ttl -- adjust
 		q = ([[
 		SELECT * FROM name WHERE last_login > %i
@@ -503,7 +504,7 @@ local function build_cache()
 		local ctr = 0
 		for k, row in pairs(name_cache) do
 			for _,v in ipairs(address_records(row.id)) do
-				ip_cache[ip_key(v)] = row.id
+				ip_cache[ip_key(v.ip)] = row.id
 				ctr = ctr + 1
 			end
 		end
