@@ -2,7 +2,7 @@
 
 [![Build Status](https://travis-ci.org/shivajiva101/sban.svg?branch=master)](https://travis-ci.org/shivajiva101/sban)
 #### *** WARNING ***
-As this is a dev branch the code is in a fluid state, feel free to test it as the API functions will be retained on merge.
+As this is a dev branch the code is in a fluid state, feel free to test it as the API functions will be retained on merge. It will also spam the log with all db statements executed...you have been warned!
 
 Existing users please note that to use this version you need to apply sban/tools/sban_update.sql so backup your database to somewhere safe and copy sban/tools/sban_update.sql to the world you want to appy the update to and in a terminal navigate to the world folder and use the commands:
 
@@ -14,7 +14,7 @@ This mod is based on the concepts introduced by xban2, and expands on them
 by using an sql database instead of a serialised table file. This approach to
 ban management:
 
-* API allows other mods to access useful functions
+* Offers API access to useful functions
 * Improves the robustness of the data.
 * Grants an enhanced view of player accounts and ban records.
 * Provides tiered access to player record information.
