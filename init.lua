@@ -1330,7 +1330,7 @@ local function get_state(name)
 			page = 1,
 			flag = false
 		}
-		fs[name] = s
+		formstate[name] = s
 	end
 	return s
 end
