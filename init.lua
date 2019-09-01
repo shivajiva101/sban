@@ -153,7 +153,7 @@ end
 -- @return String containing datetime
 local function hrdf(utc_int)
 	if type(utc_int) == "number" then
-		return = (utc_int and os.date("%c", utc_int))
+		return (utc_int and os.date("%c", utc_int))
 	end
 end
 
