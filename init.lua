@@ -43,7 +43,7 @@ local db_version = '0.2.1'
 local db = _sql.open(DB) -- connection
 local expiry, owner, owner_id, def_duration, display_max, names_per_id
 local importer, ID, HL_Max, max_cache_records, ttl, cap
-local state = {}
+local formstate = {}
 local t_units = {
 	s = 1, S=1, m = 60, h = 3600, H = 3600,
 	d = 86400, D = 86400, w = 604800, W = 604800,
@@ -66,7 +66,6 @@ if minetest.settings then
 	names_per_id = tonumber(minetest.settings:get("sban.accounts_per_id"))
 	importer = minetest.settings:get("sban.import_enabled") or true
 	HL_Max = tonumber(minetest.settings:get("sban.hotlist_max")) or 15
-	api_enable = minetest.settings:get_bool("sban.api")
 	max_cache_records = tonumber(minetest.settings:get("sban.cache.max")) or 1000
 	ttl = tonumber(minetest.settings:get("sban.cache.ttl")) or 86400
 else
@@ -78,7 +77,6 @@ else
 	names_per_id = tonumber(minetest.setting_get("sban.accounts_per_id"))
 	importer = minetest.setting_getbool("sban.import_enable") or true
 	HL_Max = tonumber(minetest.setting_get("sban.hotlist_max")) or 15
-	api_enable = minetest.setting_getbool("sban.api")
 	max_cache_records = tonumber(minetest.setting_get("sban.cache_max")) or 1000
 	ttl = tonumber(minetest.setting_get("sban.cache_ttl")) or 86400
 end
@@ -171,7 +169,6 @@ end
 local function escape_string(str)
 	local result
 	result = str:gsub("'", "''")
-	result = str:gsub('_', '')
 	return result
 end
 
@@ -995,7 +992,7 @@ if importer then
 				-- check for existing ban
 				if not bans[id] then
 					-- create ban entry - name,source,reason,expires
-					create_ban_record(name, source, "imported from ipban.txt", '')
+					create_ban_record(name, 'sban', 'imported from ipban.txt', '')
 				end
 			end
 		end
@@ -1320,7 +1317,7 @@ end
 -- @param name string
 -- @return keypair state table
 local function get_state(name)
-	local s = state[name]
+	local s = formstate[name]
 	if not s then
 		s = {
 			list = {},
@@ -1333,7 +1330,7 @@ local function get_state(name)
 			page = 1,
 			flag = false
 		}
-		state[name] = s
+		fs[name] = s
 	end
 	return s
 end
@@ -1378,7 +1375,7 @@ end
 -- @return formspec string
 local function getformspec(name)
 
-	local fs = state[name]
+	local fs = formstate[name]
 	local f
 	local list = fs.list
 	local bgimg = ""
@@ -1756,7 +1753,7 @@ minetest.register_chatcommand("bang", {
 	description = "Launch sban gui",
 	privs = {ban = true},
 	func = function(name)
-		state[name] = nil
+		formstate[name] = nil
 		local fs = get_state(name)
 		fs.list = hotlist
 		for i,v in ipairs(fs.list) do
