@@ -482,6 +482,7 @@ local function get_names(name)
 	return r
 end
 
+cap = 0
 -- Build name and address cache
 -- @return nil
 local function build_cache()
@@ -489,8 +490,7 @@ local function build_cache()
 	local q = "SELECT max(last_login) AS login FROM name;"
 	local it, state = db:nrows(q)
 	local last = it(state)
-	if last then
-		cap = cap or 0
+	if last.login then
 		last = last.login - ttl -- adjust
 		q = ([[
 		SELECT * FROM name WHERE last_login > %i
