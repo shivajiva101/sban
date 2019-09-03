@@ -95,9 +95,9 @@ INSERT INTO expired SELECT
 	u_reason,
 	u_date,
 	last_pos
-FROM bans WHERE active != 'true';
+FROM bans WHERE active != 'true' AND typeof(id) = 'integer';
 
--- insert the ative
+-- insert the active
 INSERT INTO active_tmp SELECT
 	id,
 	name,
@@ -106,7 +106,7 @@ INSERT INTO active_tmp SELECT
 	reason,
 	expires,
 	last_pos
-FROM bans WHERE active = 'true';
+FROM bans WHERE active = 'true' AND typeof(id) = 'integer';
 
 INSERT INTO address_tmp (id, ip, created) SELECT DISTINCT id, ip, created FROM playerdata;
 INSERT INTO name_tmp (id, name, created, last_login) SELECT DISTINCT id, name, created, last_login FROM playerdata;
