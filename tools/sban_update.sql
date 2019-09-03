@@ -60,6 +60,20 @@ CREATE TABLE IF NOT EXISTS expired (
 	last_pos TEXT(50)
 );
 
+CREATE TABLE IF NOT EXISTS fixed (
+	id INTEGER (10),
+	name TEXT (50),
+	source TEXT (50),
+	created INTEGER (30),
+	reason TEXT (300),
+	expires INTEGER (30),
+	u_source TEXT(50),
+	u_reason TEXT(300),
+	u_date INTEGER (30),
+	active BOOLEAN,
+	last_pos TEXT(50)
+);
+
 CREATE TABLE IF NOT EXISTS name (
 	id INTEGER (10),
 	name TEXT (50) PRIMARY KEY,
@@ -82,6 +96,27 @@ CREATE TABLE IF NOT EXISTS violation (
     ip        TEXT (20),
     created   INTEGER (30)
 );
+
+-- fix any id with a text entry in bans!
+INSERT INTO fixed SELECT
+	playerdata.id,
+	name,
+	source,
+	created,
+	reason,
+	expires,
+	u_source,
+	u_reason,
+	u_date,
+	active,
+	last_pos
+FROM bans
+	INNER JOIN
+	playerdata ON playerdata.name = bans.name
+WHERE  typeof(bans.id) = 'text';
+
+DELETE FROM bans WHERE typeof(bans.id) = 'text';
+INSERT INTO bans SELECT * FROM fixed;
 
 -- insert the inactive bans into expired
 INSERT INTO expired SELECT
@@ -123,6 +158,7 @@ DROP TABLE name_tmp;
 DROP TABLE players;
 DROP TABLE playerdata;
 DROP TABLE version;
+DROP TABLE fixed;
 
 COMMIT;
 
