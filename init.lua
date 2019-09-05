@@ -450,7 +450,7 @@ local function display_record(caller, target)
 		minetest.chat_send_player(caller, "\nNo ban records!")
 	end
 
-	r = bans[id]
+	r = bans[tostring(id)]
 	local ban = tostring(r ~= nil)
 	minetest.chat_send_player(caller, "Current Status:")
 	if ban == 'true' then
@@ -664,7 +664,7 @@ local function create_ban_record(name, source, reason, expires)
 	end
 
 	-- cache the ban
-	bans[id] = {
+	bans[tostring(id)] = {
 		id = id,
 		name = name,
 		source = source,
@@ -820,7 +820,7 @@ local function del_ban_record(id)
 		DELETE FROM active WHERE id = %i
 	]]):format(id)
 	db_exec(stmt)
-	bans[id] = nil -- update cache
+	bans[tostring(id)] = nil -- update cache
 end
 
 -- Remove whitelist entry
@@ -991,7 +991,7 @@ if importer then
 					id = create_player_record(name, ip)
 				end
 				-- check for existing ban
-				if not bans[id] then
+				if not bans[tostring(id)] then
 					-- create ban entry - name,source,reason,expires
 					create_ban_record(name, 'sban', 'imported from ipban.txt', '')
 				end
@@ -1093,7 +1093,7 @@ if importer then
 		end
 
 		-- initialise table of banned id's
-		for i,v in ipairs(bans) do
+		for k,v in pairs(bans) do
 			local id = v.id
 			xport[id] = {
 				banned = true,
@@ -1119,13 +1119,13 @@ if importer then
 				}
 			end
 			t[#t+1] = {
-				time = bans[id].created,
-				source = bans[id].source,
-				reason = bans[id].reason
+				time = bans[tostring(id)].created,
+				source = bans[tostring(id)].source,
+				reason = bans[tostring(id)].reason
 			}
 			xport[id].record = t
-			xport[id].last_seen = bans[id].last_login
-			xport[id].last_pos = bans[id].last_pos
+			xport[id].last_seen = bans[tostring(id)].last_login
+			xport[id].last_pos = bans[tostring(id)].last_pos
 		end
 
 		local function repr(x)
@@ -1346,7 +1346,7 @@ local function update_state(name, selected)
 	local id = get_id(selected)
 
 	fs.ban = player_ban_expired(id)
-	local cur = bans[id]
+	local cur = bans[tostring(id)]
 	if cur then table.insert(fs.ban, cur) end
 
 	local info = "Ban records: "..#fs.ban.."\n"
@@ -1550,7 +1550,7 @@ minetest.override_chatcommand("ban", {
 
 		if id then
 			-- check for existing ban
-		   if bans[id] then
+		   if bans[tostring(id)] then
 			   return true, ("%s is already banned!"):format(player_name)
 		   end
 			-- limit ban?
@@ -1707,7 +1707,7 @@ minetest.register_chatcommand("tempban", {
 		-- is player already banned?
 		local id = get_id(player_name)
 		if id then
-			if bans[id] then
+			if bans[tostring(id)] then
 				return true, ("%s is already banned!"):format(player_name)
 			end
 			create_ban_record(player_name, name, reason, expires)
@@ -1740,7 +1740,7 @@ minetest.override_chatcommand("unban", {
 		-- look for records by id
 		local id = get_id(player_name)
 		if id then
-			if not bans[id] then
+			if not bans[tostring(id)] then
 				return false, ("No active ban record for "..player_name)
 			end
 			update_ban_record(id, name, reason, player_name)
@@ -1852,7 +1852,7 @@ sban.ban = function(name, source, reason, expires)
 		return false, ("No records exist for %s"):format(name)
 	elseif bans[tostring(id)] then
 		-- only one active ban per id
-		return false, ("An active record already exist for %s"):format(name)
+		return false, ("An active ban already exist for %s"):format(name)
 	end
 	-- ban player
 	create_ban_record(name, source, reason, expires)
