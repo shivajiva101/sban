@@ -408,7 +408,7 @@ local function display_record(caller, target)
 			):format(i, r[i].ip, d))
 		end
 		r = violation_records(id)
-		if r then
+		if #r > 0 then
 			minetest.chat_send_player(caller, "\nViolation records: " .. #r .. "\n")
 			for i,v in ipairs(r) do
 				minetest.chat_send_player(caller,
