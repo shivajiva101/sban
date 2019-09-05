@@ -1309,14 +1309,24 @@ end
 -- @return nil
 local function process_expired_bans()
 	local ts = os.time()
+	local tq = {}
 	for id_key,row in pairs(bans) do
 		if type(row.expires) == "number" and row.expires ~= 0 then
 			-- temp ban
 			if ts > row.expires then
-				-- clear temp ban
-				update_ban_record(id_key, "sban", "ban expired", row.name)
+				-- add sql statements
+				tq[tq+1] = ([[
+					INSERT INTO expired VALUES (%i,'%s','%s',%i,'%s',%i,'sban','tempban expiry',%i,'%s');
+					DELETE FROM active WHERE id = %i;
+				]]):format(row.id, row.name, row.source, row.created, escape_string(row.reason),
+				row.expires, ts, row.last_pos, row.id)
 			end
 		end
+	end
+	if #tq > 0 then
+		-- finalise & execute
+		tq[tq+1] = "VACUM;"
+		db_exec(table.concat(tq, "\n"))
 	end
 end
 process_expired_bans() -- trigger on mod load
