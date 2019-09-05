@@ -186,23 +186,66 @@ end
 #################################
 ]]
 
-local createDb = "CREATE TABLE IF NOT EXISTS active (id INTEGER PRIMARY KEY, "
-.."name VARCHAR(50), source VARCHAR(50), created INTEGER, "
-.."reason VARCHAR(300), expires INTEGER, pos VARCHAR(50));\n"
-.."CREATE TABLE IF NOT EXISTS expired (id INTEGER, "
-.."name VARCHAR(50), source VARCHAR(50), created INTEGER, "
-.."reason VARCHAR(300), expires INTEGER, u_source VARCHAR(50), "
-.."u_reason VARCHAR(300), u_date INTEGER, last_pos VARCHAR(50));\n"
-.."CREATE TABLE IF NOT EXISTS name (id INTEGER, name VARCHAR(50) PRIMARY KEY, "
-.."created INTEGER, last_login INTEGER, login_count INTEGER);\n"
-.."CREATE TABLE IF NOT EXISTS address (id INTEGER, ip VARCHAR(50) PRIMARY KEY, "
-.."created INTEGER, last_login INTEGER, login_count INTEGER, violation BOOLEAN);\n"
-.."CREATE TABLE IF NOT EXISTS whitelist (name VARCHAR(50), source VARCHAR(50), "
-.."created INTEGER);\n"
-.."CREATE TABLE IF NOT EXISTS config (mod_version VARCHAR(12), "
-.."db_version VARCHAR(12));\n"
-.."CREATE TABLE IF NOT EXISTS violation (src_id INTEGER (10), target_id "
-.."INTEGER (10), ip TEXT (20), created INTEGER (30));\n"
+local createDb = [[
+CREATE TABLE IF NOT EXISTS active (
+	id INTEGER PRIMARY KEY,
+	name VARCHAR(50),
+	source VARCHAR(50),
+	created INTEGER,
+	reason VARCHAR(300),
+	expires INTEGER,
+	pos VARCHAR(50)
+);
+
+CREATE TABLE IF NOT EXISTS expired (
+	id INTEGER,
+	name VARCHAR(50),
+	source VARCHAR(50),
+	created INTEGER,
+	reason VARCHAR(300),
+	expires INTEGER,
+	u_source VARCHAR(50),
+	u_reason VARCHAR(300),
+	u_date INTEGER,
+	last_pos VARCHAR(50)
+);
+
+CREATE TABLE IF NOT EXISTS name (
+	id INTEGER,
+	name VARCHAR(50) PRIMARY KEY,
+	created INTEGER,
+	last_login INTEGER,
+	login_count INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS address (
+	id INTEGER,
+	ip VARCHAR(50) PRIMARY KEY,
+	created INTEGER,
+	last_login INTEGER,
+	login_count INTEGER,
+	violation BOOLEAN
+);
+
+CREATE TABLE IF NOT EXISTS whitelist (
+	name_or_ip VARCHAR(50) PRIMARY KEY,
+	source VARCHAR(50),
+	created INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS config (
+	mod_version VARCHAR(12),
+	db_version VARCHAR(12)
+);
+
+CREATE TABLE IF NOT EXISTS violation (
+	src_id INTEGER (10) PRIMARY KEY,
+	target_id INTEGER (10),
+	ip TEXT (20),
+	created INTEGER (30)
+);
+]]
+
 db_exec(createDb)
 
 --[[
