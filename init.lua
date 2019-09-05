@@ -307,7 +307,7 @@ end
 local function violation_records(id)
 	local r, q = {}
 	q = ([[
-		SELECT * FROM violation WHERE id = %i;
+		SELECT * FROM violation WHERE src_id = %i;
 		]]):format(id)
 	for row in db:nrows(q) do
 		r[#r + 1] = row
