@@ -2,100 +2,118 @@ PRAGMA foreign_keys = OFF;
 
 BEGIN TRANSACTION;
 
--- create tables
+-- create new tables
+-------------------------------------------------------
 
-CREATE TABLE IF NOT EXISTS address (
-	id INTEGER (10),
-	ip TEXT (50) PRIMARY KEY,
-	created INTEGER (30),
-	last_login INTEGER (30),
-	login_count INTEGER (8) DEFAULT (1),
-	violation BOOLEAN
-);
-
-CREATE TABLE IF NOT EXISTS address_tmp (
-	id INTEGER (10),
-	ip TEXT (50) PRIMARY KEY ON CONFLICT IGNORE,
-	created INTEGER (30),
-	last_login INTEGER (30),
-	login_count INTEGER (8) DEFAULT (1),
-	violation BOOLEAN
-);
-
-CREATE TABLE IF NOT EXISTS active  (
-	id INTEGER (10) PRIMARY KEY,
-	name TEXT (50),
-	source TEXT (50),
-	created INTEGER (30),
-	reason TEXT (300),
-	expires INTEGER (30),
-	last_pos TEXT (50)
-);
-
-CREATE TABLE IF NOT EXISTS active_tmp (
-	id INTEGER (10) PRIMARY KEY ON CONFLICT IGNORE,
-	name TEXT (50),
-	source TEXT (50),
-	created INTEGER (30),
-	reason TEXT (300),
-	expires INTEGER (30),
-	last_pos TEXT (50)
-);
-
-CREATE TABLE IF NOT EXISTS config (
-	mod_version TEXT,
-	db_version TEXT
+CREATE TABLE IF NOT EXISTS active (
+  id INTEGER(10) PRIMARY KEY,
+  name VARCHAR(50),
+  source VARCHAR(50),
+  created INTEGER(30),
+  reason VARCHAR(300),
+  expires INTEGER(30),
+  pos VARCHAR(50)
 );
 
 CREATE TABLE IF NOT EXISTS expired (
-	id INTEGER (10),
-	name TEXT (50),
-	source TEXT (50),
-	created INTEGER (30),
-	reason TEXT (300),
-	expires INTEGER (30),
-	u_source TEXT(50),
-	u_reason TEXT(300),
-	u_date INTEGER (30),
-	last_pos TEXT(50)
+  id INTEGER(10) PRIMARY KEY,
+  name VARCHAR(50),
+  source VARCHAR(50),
+  created INTEGER(30),
+  reason VARCHAR(300),
+  expires INTEGER(30),
+  u_source VARCHAR(50),
+  u_reason VARCHAR(300),
+  u_date INTEGER(30),
+  last_pos VARCHAR(50)
+);
+CREATE INDEX IF NOT EXISTS idx_expired_id ON expired(id);
+
+CREATE TABLE IF NOT EXISTS name (
+  id INTEGER(10),
+  name VARCHAR(50) PRIMARY KEY,
+  created INTEGER(30),
+  last_login INTEGER(30),
+  login_count INTEGER(8) DEFAULT(1)
+);
+CREATE INDEX IF NOT EXISTS idx_name_id ON name(id);
+CREATE INDEX IF NOT EXISTS idx_name_lastlogin ON name(last_login);
+
+CREATE TABLE IF NOT EXISTS address (
+  id INTEGER(10),
+  ip VARCHAR(50) PRIMARY KEY,
+  created INTEGER(30),
+  last_login INTEGER(30),
+  login_count INTEGER(8) DEFAULT(1),
+  violation BOOLEAN
+);
+CREATE INDEX IF NOT EXISTS idx_address_id ON address(id);
+CREATE INDEX IF NOT EXISTS idx_address_lastlogin ON address(last_login);
+
+CREATE TABLE IF NOT EXISTS whitelist (
+  name_or_ip VARCHAR(50) PRIMARY KEY,
+  source VARCHAR(50),
+  created INTEGER(30)
+);
+CREATE TABLE IF NOT EXISTS config (
+  mod_version VARCHAR(12),
+  db_version VARCHAR(12)
+);
+CREATE TABLE IF NOT EXISTS violation (
+  src_id INTEGER(10),
+  target_id INTEGER(10),
+  ip VARCHAR(50),
+  created INTEGER(30)
+);
+CREATE INDEX IF NOT EXISTS idx_violation_src_id ON violation(src_id);
+
+
+-- create temporary tables for transfering existing data
+------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS address_tmp (
+	id INTEGER(10),
+	ip VARCHAR(50) PRIMARY KEY ON CONFLICT IGNORE,
+	created INTEGER(30),
+	last_login INTEGER(30),
+	login_count INTEGER(8) DEFAULT (1),
+	violation BOOLEAN
+);
+
+CREATE TABLE IF NOT EXISTS active_tmp (
+	id INTEGER(10) PRIMARY KEY ON CONFLICT IGNORE,
+	name VARCHAR(50),
+	source VARCHAR(50),
+	created INTEGER(30),
+	reason VARCHAR(300),
+	expires INTEGER(30),
+	last_pos VARCHAR(50)
 );
 
 CREATE TABLE IF NOT EXISTS fixed (
-	id INTEGER (10),
-	name TEXT (50),
-	source TEXT (50),
-	created INTEGER (30),
-	reason TEXT (300),
-	expires INTEGER (30),
-	u_source TEXT(50),
-	u_reason TEXT(300),
-	u_date INTEGER (30),
+	id INTEGER(10),
+	name VARCHAR(50),
+	source VARCHAR(50),
+	created INTEGER(30),
+	reason VARCHAR(300),
+	expires INTEGER(30),
+	u_source VARCHAR(50),
+	u_reason VARCHAR(300),
+	u_date INTEGER(30),
 	active BOOLEAN,
-	last_pos TEXT(50)
-);
-
-CREATE TABLE IF NOT EXISTS name (
-	id INTEGER (10),
-	name TEXT (50) PRIMARY KEY,
-	created INTEGER (30),
-	last_login INTEGER (30),
-	login_count INTEGER (6) DEFAULT (1)
+	last_pos VARCHAR(50)
 );
 
 CREATE TABLE IF NOT EXISTS name_tmp (
-	id INTEGER (10),
-	name TEXT (50) PRIMARY KEY ON CONFLICT IGNORE,
-	created INTEGER (30),
-	last_login INTEGER (30),
-	login_count INTEGER (6) DEFAULT (1)
+	id INTEGER(10),
+	name VARCHAR(50) PRIMARY KEY ON CONFLICT IGNORE,
+	created INTEGER(30),
+	last_login INTEGER(30),
+	login_count INTEGER(8) DEFAULT (1)
 );
 
-CREATE TABLE IF NOT EXISTS violation (
-    src_id    INTEGER (10),
-    target_id INTEGER (10),
-    ip        TEXT (20),
-    created   INTEGER (30)
-);
+-- transfer existing data to new tables
+----------------------------------------------
 
 -- fix any id with a text entry in bans!
 INSERT INTO fixed SELECT
@@ -150,7 +168,9 @@ INSERT INTO address SELECT * FROM address_tmp;
 INSERT INTO active SELECT * FROM active_tmp;
 INSERT INTO name SELECT * FROM name_tmp;
 
--- clean up
+-- clean up temporary tables
+-----------------------------------------
+
 DROP TABLE address_tmp;
 DROP TABLE bans;
 DROP TABLE active_tmp;

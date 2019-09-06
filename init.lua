@@ -186,23 +186,69 @@ end
 #################################
 ]]
 
-local createDb = "CREATE TABLE IF NOT EXISTS active (id INTEGER PRIMARY KEY, "
-.."name VARCHAR(50), source VARCHAR(50), created INTEGER, "
-.."reason VARCHAR(300), expires INTEGER, pos VARCHAR(50));\n"
-.."CREATE TABLE IF NOT EXISTS expired (id INTEGER, "
-.."name VARCHAR(50), source VARCHAR(50), created INTEGER, "
-.."reason VARCHAR(300), expires INTEGER, u_source VARCHAR(50), "
-.."u_reason VARCHAR(300), u_date INTEGER, last_pos VARCHAR(50));\n"
-.."CREATE TABLE IF NOT EXISTS name (id INTEGER, name VARCHAR(50) PRIMARY KEY, "
-.."created INTEGER, last_login INTEGER, login_count INTEGER);\n"
-.."CREATE TABLE IF NOT EXISTS address (id INTEGER, ip VARCHAR(50) PRIMARY KEY, "
-.."created INTEGER, last_login INTEGER, login_count INTEGER, violation BOOLEAN);\n"
-.."CREATE TABLE IF NOT EXISTS whitelist (name VARCHAR(50), source VARCHAR(50), "
-.."created INTEGER);\n"
-.."CREATE TABLE IF NOT EXISTS config (mod_version VARCHAR(12), "
-.."db_version VARCHAR(12));\n"
-.."CREATE TABLE IF NOT EXISTS violation (src_id INTEGER (10), target_id "
-.."INTEGER (10), ip TEXT (20), created INTEGER (30));\n"
+local createDb = [[
+CREATE TABLE IF NOT EXISTS active (
+  id INTEGER(10) PRIMARY KEY,
+  name VARCHAR(50),
+  source VARCHAR(50),
+  created INTEGER(30),
+  reason VARCHAR(300),
+  expires INTEGER(30),
+  pos VARCHAR(50)
+);
+
+CREATE TABLE IF NOT EXISTS expired (
+  id INTEGER(10) PRIMARY KEY,
+  name VARCHAR(50),
+  source VARCHAR(50),
+  created INTEGER(30),
+  reason VARCHAR(300),
+  expires INTEGER(30),
+  u_source VARCHAR(50),
+  u_reason VARCHAR(300),
+  u_date INTEGER(30),
+  last_pos VARCHAR(50)
+);
+CREATE INDEX IF NOT EXISTS idx_expired_id ON expired(id);
+
+CREATE TABLE IF NOT EXISTS name (
+  id INTEGER(10),
+  name VARCHAR(50) PRIMARY KEY,
+  created INTEGER(30),
+  last_login INTEGER(30),
+  login_count INTEGER(8) DEFAULT(1)
+);
+CREATE INDEX IF NOT EXISTS idx_name_id ON name(id);
+CREATE INDEX IF NOT EXISTS idx_name_lastlogin ON name(last_login);
+
+CREATE TABLE IF NOT EXISTS address (
+  id INTEGER(10),
+  ip VARCHAR(50) PRIMARY KEY,
+  created INTEGER(30),
+  last_login INTEGER(30),
+  login_count INTEGER(8) DEFAULT(1),
+  violation BOOLEAN
+);
+CREATE INDEX IF NOT EXISTS idx_address_id ON address(id);
+CREATE INDEX IF NOT EXISTS idx_address_lastlogin ON address(last_login);
+
+CREATE TABLE IF NOT EXISTS whitelist (
+  name_or_ip VARCHAR(50) PRIMARY KEY,
+  source VARCHAR(50),
+  created INTEGER(30)
+);
+CREATE TABLE IF NOT EXISTS config (
+  mod_version VARCHAR(12),
+  db_version VARCHAR(12)
+);
+CREATE TABLE IF NOT EXISTS violation (
+  src_id INTEGER(10),
+  target_id INTEGER(10),
+  ip VARCHAR(50),
+  created INTEGER(30)
+);
+CREATE INDEX IF NOT EXISTS idx_violation_src_id ON violation(src_id);
+]]
 db_exec(createDb)
 
 --[[
@@ -307,7 +353,7 @@ end
 local function violation_records(id)
 	local r, q = {}
 	q = ([[
-		SELECT * FROM violation WHERE id = %i;
+		SELECT * FROM violation WHERE src_id = %i;
 		]]):format(id)
 	for row in db:nrows(q) do
 		r[#r + 1] = row
@@ -332,7 +378,7 @@ local function get_whitelist()
 	local r = {}
 	local q = "SELECT * FROM whitelist;"
 	for row in db:nrows(q) do
-		r[row.name] = true
+		r[row.name_or_ip] = true
 	end
 	return r
 end
@@ -828,7 +874,7 @@ end
 -- @return nil
 local function del_whitelist(name_or_ip)
 	local stmt = ([[
-		DELETE FROM whitelist WHERE name = '%s'
+		DELETE FROM whitelist WHERE name_or_ip = '%s'
 	]]):format(name_or_ip)
 	db_exec(stmt)
 end
@@ -1499,7 +1545,7 @@ minetest.register_on_player_receive_fields(function(player, formname, fields)
 				if selected == owner then
 					fs.info = "you do not have permission to do that!"
 				else
-					create_ban_record(selected, name, ESC(fields.reason), '')
+					create_ban_record(selected, name, ESC(fields.reason), 0)
 				end
 			elseif fields.unban then
 				update_ban_record(id, name, ESC(fields.reason), selected)
@@ -1545,7 +1591,7 @@ minetest.override_chatcommand("ban", {
 			return false, "Insufficient privileges!"
 		end
 
-		local expires = ''
+		local expires = 0
 		local id = get_id(player_name)
 
 		if id then
