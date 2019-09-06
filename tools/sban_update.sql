@@ -60,12 +60,11 @@ CREATE TABLE IF NOT EXISTS config (
   db_version VARCHAR(12)
 );
 CREATE TABLE IF NOT EXISTS violation (
-  src_id INTEGER(10),
+  src_id INTEGER(10) PRIMARY KEY,
   target_id INTEGER(10),
   ip VARCHAR(50),
   created INTEGER(30)
 );
-CREATE INDEX IF NOT EXISTS idx_violation_src_id ON violation(src_id);
 
 
 -- create temporary tables for transfering existing data

@@ -242,12 +242,11 @@ CREATE TABLE IF NOT EXISTS config (
   db_version VARCHAR(12)
 );
 CREATE TABLE IF NOT EXISTS violation (
-  src_id INTEGER(10),
+  src_id INTEGER(10) PRIMARY KEY,
   target_id INTEGER(10),
   ip VARCHAR(50),
   created INTEGER(30)
 );
-CREATE INDEX IF NOT EXISTS idx_violation_src_id ON violation(src_id);
 ]]
 db_exec(createDb)
 
@@ -1139,7 +1138,7 @@ if importer then
 		end
 
 		-- initialise table of banned id's
-		for i,v in ipairs(bans) do
+		for k,v in pairs(bans) do
 			local id = v.id
 			xport[id] = {
 				banned = true,
@@ -1312,14 +1311,24 @@ end
 -- @return nil
 local function process_expired_bans()
 	local ts = os.time()
+	local tq = {}
 	for id_key,row in pairs(bans) do
 		if type(row.expires) == "number" and row.expires ~= 0 then
 			-- temp ban
 			if ts > row.expires then
-				-- clear temp ban
-				update_ban_record(id_key, "sban", "ban expired", row.name)
+				-- add sql statements
+				tq[tq+1] = ([[
+					INSERT INTO expired VALUES (%i,'%s','%s',%i,'%s',%i,'sban','tempban expiry',%i,'%s');
+					DELETE FROM active WHERE id = %i;
+				]]):format(row.id, row.name, row.source, row.created, escape_string(row.reason),
+				row.expires, ts, row.last_pos, row.id)
 			end
 		end
+	end
+	if #tq > 0 then
+		-- finalise & execute
+		tq[tq+1] = "VACUM;"
+		db_exec(table.concat(tq, "\n"))
 	end
 end
 process_expired_bans() -- trigger on mod load
@@ -1896,9 +1905,9 @@ sban.ban = function(name, source, reason, expires)
 	local id = get_id(name)
 	if not id then
 		return false, ("No records exist for %s"):format(name)
-	elseif bans[tostring(id)] then
+	elseif bans[id] then
 		-- only one active ban per id
-		return false, ("An active record already exist for %s"):format(name)
+		return false, ("An active ban already exist for %s"):format(name)
 	end
 	-- ban player
 	create_ban_record(name, source, reason, expires)
@@ -1918,7 +1927,7 @@ sban.unban = function(name, source, reason)
 	-- look for records by id
 	local id = get_id(name)
 	if id then
-		if not bans[tostring(id)] then
+		if not bans[id] then
 			return false, ("No active ban record for "..name)
 		end
 		update_ban_record(id, name, reason, name)
@@ -1934,7 +1943,7 @@ end
 sban.ban_status = function(name_or_ip)
 	assert(type(name_or_ip) == 'string')
 	local id = get_id(name_or_ip)
-	return bans[tostring(id)] ~= nil
+	return bans[id] ~= nil
 end
 
 -- Fetch ban status for a player name or ip address
@@ -1944,7 +1953,7 @@ sban.ban_record = function(name_or_ip)
 	assert(type(name_or_ip) == 'string')
 	local id = get_id(name_or_ip)
 	if id then
-		return bans[tostring(id)]
+		return bans[id]
 	end
 end
 
@@ -1979,7 +1988,7 @@ minetest.register_on_prejoinplayer(function(name, ip)
 	if not id then return end -- unknown player
 	if owner_id and owner_id == id then return end -- owner bypass
 
-	local data = bans[tostring(id)]
+	local data = bans[id]
 
 	if not data then
 		-- check names per id
