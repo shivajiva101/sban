@@ -1315,7 +1315,7 @@ local function process_expired_bans()
 			-- temp ban
 			if ts > row.expires then
 				-- add sql statements
-				tq[tq+1] = ([[
+				tq[#tq+1] = ([[
 					INSERT INTO expired VALUES (%i,'%s','%s',%i,'%s',%i,'sban','tempban expiry',%i,'%s');
 					DELETE FROM active WHERE id = %i;
 				]]):format(row.id, row.name, row.source, row.created, escape_string(row.reason),
@@ -1325,7 +1325,7 @@ local function process_expired_bans()
 	end
 	if #tq > 0 then
 		-- finalise & execute
-		tq[tq+1] = "VACUM;"
+		tq[#tq+1] = "VACUM;"
 		db_exec(table.concat(tq, "\n"))
 	end
 end
