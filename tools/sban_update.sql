@@ -6,64 +6,64 @@ BEGIN TRANSACTION;
 -------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS active (
-  id INTEGER(10) PRIMARY KEY,
-  name VARCHAR(50),
-  source VARCHAR(50),
-  created INTEGER(30),
-  reason VARCHAR(300),
-  expires INTEGER(30),
-  pos VARCHAR(50)
+	id INTEGER(10) PRIMARY KEY,
+	name VARCHAR(50),
+	source VARCHAR(50),
+	created INTEGER(30),
+	reason VARCHAR(300),
+	expires INTEGER(30),
+	pos VARCHAR(50)
 );
 
 CREATE TABLE IF NOT EXISTS expired (
-  id INTEGER(10) PRIMARY KEY,
-  name VARCHAR(50),
-  source VARCHAR(50),
-  created INTEGER(30),
-  reason VARCHAR(300),
-  expires INTEGER(30),
-  u_source VARCHAR(50),
-  u_reason VARCHAR(300),
-  u_date INTEGER(30),
-  last_pos VARCHAR(50)
+	id INTEGER(10) PRIMARY KEY,
+	name VARCHAR(50),
+	source VARCHAR(50),
+	created INTEGER(30),
+	reason VARCHAR(300),
+	expires INTEGER(30),
+	u_source VARCHAR(50),
+	u_reason VARCHAR(300),
+	u_date INTEGER(30),
+	last_pos VARCHAR(50)
 );
 CREATE INDEX IF NOT EXISTS idx_expired_id ON expired(id);
 
 CREATE TABLE IF NOT EXISTS name (
-  id INTEGER(10),
-  name VARCHAR(50) PRIMARY KEY,
-  created INTEGER(30),
-  last_login INTEGER(30),
-  login_count INTEGER(8) DEFAULT(1)
+	id INTEGER(10),
+	name VARCHAR(50) PRIMARY KEY,
+	created INTEGER(30),
+	last_login INTEGER(30),
+	login_count INTEGER(8) DEFAULT(1)
 );
 CREATE INDEX IF NOT EXISTS idx_name_id ON name(id);
 CREATE INDEX IF NOT EXISTS idx_name_lastlogin ON name(last_login);
 
 CREATE TABLE IF NOT EXISTS address (
-  id INTEGER(10),
-  ip VARCHAR(50) PRIMARY KEY,
-  created INTEGER(30),
-  last_login INTEGER(30),
-  login_count INTEGER(8) DEFAULT(1),
-  violation BOOLEAN
+	id INTEGER(10),
+	ip VARCHAR(50) PRIMARY KEY,
+	created INTEGER(30),
+	last_login INTEGER(30),
+	login_count INTEGER(8) DEFAULT(1),
+	violation BOOLEAN
 );
 CREATE INDEX IF NOT EXISTS idx_address_id ON address(id);
 CREATE INDEX IF NOT EXISTS idx_address_lastlogin ON address(last_login);
 
 CREATE TABLE IF NOT EXISTS whitelist (
-  name_or_ip VARCHAR(50) PRIMARY KEY,
-  source VARCHAR(50),
-  created INTEGER(30)
+	name_or_ip VARCHAR(50) PRIMARY KEY,
+	source VARCHAR(50),
+	created INTEGER(30)
 );
 CREATE TABLE IF NOT EXISTS config (
-  mod_version VARCHAR(12),
-  db_version VARCHAR(12)
+	mod_version VARCHAR(12),
+	db_version VARCHAR(12)
 );
 CREATE TABLE IF NOT EXISTS violation (
-  src_id INTEGER(10) PRIMARY KEY,
-  target_id INTEGER(10),
-  ip VARCHAR(50),
-  created INTEGER(30)
+	src_id INTEGER(10),
+	target_id INTEGER(10),
+	ip VARCHAR(50),
+	created INTEGER(30)
 );
 
 
