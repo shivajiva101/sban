@@ -701,7 +701,7 @@ local function create_ban_record(name, source, reason, expires)
 	local id = get_id(name)
 	local player = minetest.get_player_by_name(name)
 	local p_reason = escape_string(reason)
-	
+
 	expires = expires or 0
 
 	-- initialise last position
