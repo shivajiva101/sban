@@ -188,64 +188,64 @@ end
 
 local createDb = [[
 CREATE TABLE IF NOT EXISTS active (
-  id INTEGER(10) PRIMARY KEY,
-  name VARCHAR(50),
-  source VARCHAR(50),
-  created INTEGER(30),
-  reason VARCHAR(300),
-  expires INTEGER(30),
-  pos VARCHAR(50)
+	id INTEGER(10) PRIMARY KEY,
+	name VARCHAR(50),
+	source VARCHAR(50),
+	created INTEGER(30),
+	reason VARCHAR(300),
+	expires INTEGER(30),
+	pos VARCHAR(50)
 );
 
 CREATE TABLE IF NOT EXISTS expired (
-  id INTEGER(10) PRIMARY KEY,
-  name VARCHAR(50),
-  source VARCHAR(50),
-  created INTEGER(30),
-  reason VARCHAR(300),
-  expires INTEGER(30),
-  u_source VARCHAR(50),
-  u_reason VARCHAR(300),
-  u_date INTEGER(30),
-  last_pos VARCHAR(50)
+	id INTEGER(10) PRIMARY KEY,
+	name VARCHAR(50),
+	source VARCHAR(50),
+	created INTEGER(30),
+	reason VARCHAR(300),
+	expires INTEGER(30),
+	u_source VARCHAR(50),
+	u_reason VARCHAR(300),
+	u_date INTEGER(30),
+	last_pos VARCHAR(50)
 );
 CREATE INDEX IF NOT EXISTS idx_expired_id ON expired(id);
 
 CREATE TABLE IF NOT EXISTS name (
-  id INTEGER(10),
-  name VARCHAR(50) PRIMARY KEY,
-  created INTEGER(30),
-  last_login INTEGER(30),
-  login_count INTEGER(8) DEFAULT(1)
+	id INTEGER(10),
+	name VARCHAR(50) PRIMARY KEY,
+	created INTEGER(30),
+	last_login INTEGER(30),
+	login_count INTEGER(8) DEFAULT(1)
 );
 CREATE INDEX IF NOT EXISTS idx_name_id ON name(id);
 CREATE INDEX IF NOT EXISTS idx_name_lastlogin ON name(last_login);
 
 CREATE TABLE IF NOT EXISTS address (
-  id INTEGER(10),
-  ip VARCHAR(50) PRIMARY KEY,
-  created INTEGER(30),
-  last_login INTEGER(30),
-  login_count INTEGER(8) DEFAULT(1),
-  violation BOOLEAN
+	id INTEGER(10),
+	ip VARCHAR(50) PRIMARY KEY,
+	created INTEGER(30),
+	last_login INTEGER(30),
+	login_count INTEGER(8) DEFAULT(1),
+	violation BOOLEAN
 );
 CREATE INDEX IF NOT EXISTS idx_address_id ON address(id);
 CREATE INDEX IF NOT EXISTS idx_address_lastlogin ON address(last_login);
 
 CREATE TABLE IF NOT EXISTS whitelist (
-  name_or_ip VARCHAR(50) PRIMARY KEY,
-  source VARCHAR(50),
-  created INTEGER(30)
+	name_or_ip VARCHAR(50) PRIMARY KEY,
+	source VARCHAR(50),
+	created INTEGER(30)
 );
 CREATE TABLE IF NOT EXISTS config (
-  mod_version VARCHAR(12),
-  db_version VARCHAR(12)
+	mod_version VARCHAR(12),
+	db_version VARCHAR(12)
 );
 CREATE TABLE IF NOT EXISTS violation (
-  src_id INTEGER(10) PRIMARY KEY,
-  target_id INTEGER(10),
-  ip VARCHAR(50),
-  created INTEGER(30)
+	src_id INTEGER(10),
+	target_id INTEGER(10),
+	ip VARCHAR(50),
+	created INTEGER(30)
 );
 ]]
 db_exec(createDb)
@@ -366,7 +366,7 @@ local function get_active_bans()
 	local r, q = {}
 	q = "SELECT * FROM active;"
 	for row in db:nrows(q) do
-		r[tostring(row.id)] = row
+		r[row.id] = row
 	end
 	return r
 end
@@ -501,7 +501,7 @@ local function display_record(caller, target)
 	if ban == 'true' then
 		local expires = "never"
 		local d = hrdf(r.created)
-		if type(r.expires) == "number" then
+		if type(r.expires) == "number" and r.expires > 0 then
 			expires = hrdf(r.expires)
 		end
 		minetest.chat_send_player(caller,
@@ -701,6 +701,8 @@ local function create_ban_record(name, source, reason, expires)
 	local id = get_id(name)
 	local player = minetest.get_player_by_name(name)
 	local p_reason = escape_string(reason)
+	
+	expires = expires or 0
 
 	-- initialise last position
 	local last_pos = ""
@@ -815,22 +817,22 @@ local function update_address(id, ip)
 end
 
 -- Update ban record
--- @param id_key string
+-- @param id integer
 -- @param source name string
 -- @param reason string
 -- @param name string
 -- @return nil
-local function update_ban_record(id_key, source, reason, name)
+local function update_ban_record(id, source, reason, name)
 	reason = escape_string(reason)
 	local ts = os.time()
-	local row = bans[id_key] -- use cached data
+	local row = bans[id] -- use cached data
 	local stmt = ([[
 		INSERT INTO expired VALUES (%i,'%s','%s',%i,'%s',%i,'%s','%s',%i,'%s');
 		DELETE FROM active WHERE id = %i;
 	]]):format(row.id, row.name, row.source, row.created, escape_string(row.reason),
 	row.expires, source, reason, ts, row.last_pos, row.id)
 	db_exec(stmt)
-	bans[id_key] = nil -- update cache
+	bans[id] = nil -- update cache
 	-- log event
 	minetest.log("action",
 	("[sban] %s unbanned by %s reason: %s"):format(name, source, reason))
@@ -1317,7 +1319,7 @@ local function process_expired_bans()
 			-- temp ban
 			if ts > row.expires then
 				-- add sql statements
-				tq[tq+1] = ([[
+				tq[#tq+1] = ([[
 					INSERT INTO expired VALUES (%i,'%s','%s',%i,'%s',%i,'sban','tempban expiry',%i,'%s');
 					DELETE FROM active WHERE id = %i;
 				]]):format(row.id, row.name, row.source, row.created, escape_string(row.reason),
@@ -1327,7 +1329,7 @@ local function process_expired_bans()
 	end
 	if #tq > 0 then
 		-- finalise & execute
-		tq[tq+1] = "VACUM;"
+		tq[#tq+1] = "VACUM;"
 		db_exec(table.concat(tq, "\n"))
 	end
 end
@@ -1986,7 +1988,7 @@ minetest.register_on_prejoinplayer(function(name, ip)
 	local id = get_id(name) or get_id(ip)
 
 	if not id then return end -- unknown player
-	if owner_id and owner_id == id then return end -- owner bypass
+	if not dev and owner_id and owner_id == id then return end -- owner bypass
 
 	local data = bans[id]
 
