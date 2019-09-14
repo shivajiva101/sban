@@ -188,7 +188,7 @@ end
 
 local createDb = [[
 CREATE TABLE IF NOT EXISTS active (
-	id INTEGER(10) PRIMARY KEY,
+	id INTEGER PRIMARY KEY,
 	name VARCHAR(50),
 	source VARCHAR(50),
 	created INTEGER(30),
@@ -198,7 +198,7 @@ CREATE TABLE IF NOT EXISTS active (
 );
 
 CREATE TABLE IF NOT EXISTS expired (
-	id INTEGER(10) PRIMARY KEY,
+	id INTEGER,
 	name VARCHAR(50),
 	source VARCHAR(50),
 	created INTEGER(30),
@@ -212,7 +212,7 @@ CREATE TABLE IF NOT EXISTS expired (
 CREATE INDEX IF NOT EXISTS idx_expired_id ON expired(id);
 
 CREATE TABLE IF NOT EXISTS name (
-	id INTEGER(10),
+	id INTEGER,
 	name VARCHAR(50) PRIMARY KEY,
 	created INTEGER(30),
 	last_login INTEGER(30),
@@ -242,10 +242,8 @@ CREATE TABLE IF NOT EXISTS config (
 	db_version VARCHAR(12)
 );
 CREATE TABLE IF NOT EXISTS violation (
-	src_id INTEGER(10),
-	target_id INTEGER(10),
-	ip VARCHAR(50),
-	created INTEGER(30)
+	id INTEGER PRIMARY KEY,
+	data VARCHAR
 );
 ]]
 db_exec(createDb)
@@ -349,15 +347,15 @@ end
 -- Fetch violation records
 -- @param id integer
 -- @return ipair table of violation records
-local function violation_records(id)
-	local r, q = {}
-	q = ([[
-		SELECT * FROM violation WHERE src_id = %i;
-		]]):format(id)
-	for row in db:nrows(q) do
-		r[#r + 1] = row
+local function violation_record(id)
+	local q = ([[
+		SELECT data FROM violation WHERE id = %i LIMIT 1;
+	]]):format(id)
+	local it, state = db:nrows(q)
+	local row = it(state)
+	if row then
+		return minetest.deserialize(row.data)
 	end
-	return r
 end
 
 -- Fetch active bans
@@ -452,12 +450,13 @@ local function display_record(caller, target)
 				("[%s] IP: %s Created: %s\n"
 			):format(i, r[i].ip, d))
 		end
-		r = violation_records(id)
+		r = violation_record(id)
 		if r then
 			minetest.chat_send_player(caller, "\nViolation records: " .. #r .. "\n")
 			for i,v in ipairs(r) do
 				minetest.chat_send_player(caller,
-				("[%s] ID: %s IP: %s Created: %s\n"):format(i, v.target_id, v.ip, v.created))
+				("[%s] ID: %s IP: %s Created: %s Last login: %s\n"):format(
+				i, v.id, v.ip, hrdf(v.created), hrdf(v.last_login)))
 			end
 		else
 			minetest.chat_send_player(caller, "\nNo violation records for " .. target .. "\n")
@@ -473,7 +472,7 @@ local function display_record(caller, target)
 		for i, e in ipairs(r) do
 			local d1 = hrdf(e.created)
 			local expires = "never"
-			if type(e.expires) == "number" then
+			if type(e.expires) == "number" and e.expires > 0 then
 				expires = hrdf(e.expires)
 			end
 			if type(e.u_date) == "number" and e.u_date > 0 then
@@ -558,7 +557,7 @@ local function build_cache()
 end
 build_cache()
 
--- Trims cache when size is exceeded
+-- Manage cache size
 -- @return nil
 local function trim_cache()
 	if cap < max_cache_records then return end
@@ -668,12 +667,49 @@ end
 -- @param target_id integer
 -- @param ip string
 -- @return nil
-local function create_idv_record(src_id, target_id, ip)
-	local ts = os.time()
-	local stmt = ([[
-		INSERT INTO violation VALUES (%i,%i,'%s',%i)
-	]]):format(src_id, target_id, ip, ts)
-	db_exec(stmt)
+local function manage_idv_record(src_id, target_id, ip)
+	local ts, stmt = os.time()
+	local record = violation_record(src_id)
+	if record then
+		local idx
+		for i,v in ipairs(record) do
+			if v.id == target_id and v.ip == ip then
+				idx = i
+				break
+			end
+		end
+		if idx then
+			-- update record
+			record[idx].ctr = record[idx].ctr + 1
+			record[idx].last_login = ts
+		else
+			-- add record
+			record[#record+1] = {
+				id = target_id,
+				ip = ip,
+				ctr = 1,
+				created = ts,
+				last_login = ts
+			}
+		end
+		stmt = ([[
+			UPDATE violation SET data = '%s' WHERE id = i%;
+		]]):format(minetest.serialize(record), src_id)
+		db_exec(stmt)
+	else
+		record = {
+			id = target_id,
+			ip = ip,
+			ctr = 1,
+			created = ts,
+			last_login = ts
+		}
+		stmt = ([[
+			INSERT INTO violation VALUES (%i,'%s')
+		]]):format(src_id, minetest.serialize(record))
+		db_exec(stmt)
+		update_idv_status(ip)
+	end
 end
 
 -- Create whitelist record
@@ -728,7 +764,7 @@ local function create_ban_record(name, source, reason, expires)
 	db_exec(stmt)
 
 	-- owner cannot be kicked!
-	if owner_id == id then return end
+	if not dev and owner_id == id then return end
 
 	-- create kick & log messages
 	local msg_k, msg_l
@@ -843,12 +879,10 @@ end
 -- @return nil
 local function update_idv_status(ip)
 	local stmt = ([[
-	BEGIN;
 	UPDATE address
 	SET
 	violation = 'true'
 	WHERE ip = '%s';
-	COMMIT;
 	]]):format(ip)
 	db_exec(stmt)
 end
@@ -1283,7 +1317,7 @@ if not current_version then
 	init_version(db_version) -- clean run
 elseif current_version == "0.1" then
 	error("You must update sban database to "..db_version..
-	"\nUse sqlite3 to import /tools/sban_update_1.sql")
+	"\nUse sqlite3 to import /tools/sban_update.sql")
 end
 
 -- initialise caches
@@ -1338,9 +1372,9 @@ process_expired_bans() -- trigger on mod load
 
 local function clean_join_cache(name)
 	local ts = os.time()
-	local stale = 10 -- ttl in seconds
+	local ttl = 10 -- ttl in seconds
 	for k,v in pairs(t_id) do
-		if (v.ts + stale) < ts or k == name then
+		if (v.ts + ttl) < ts or k == name then
 			t_id[k] = nil
 		end
 	end
@@ -2098,8 +2132,7 @@ minetest.register_on_joinplayer(function(player)
 			add_ip(id, ip) -- new ip record
 		elseif target_id ~= id then
 			-- ip registered to another id!
-			create_idv_record(id, target_id, ip)
-			update_idv_status(ip)
+			manage_idv_record(id, target_id, ip)
 		else
 			update_address(id, ip)
 		end

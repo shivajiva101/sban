@@ -6,7 +6,7 @@ BEGIN TRANSACTION;
 -------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS active (
-	id INTEGER(10) PRIMARY KEY,
+	id INTEGER PRIMARY KEY,
 	name VARCHAR(50),
 	source VARCHAR(50),
 	created INTEGER(30),
@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS active (
 );
 
 CREATE TABLE IF NOT EXISTS expired (
-	id INTEGER(10) PRIMARY KEY,
+	id INTEGER,
 	name VARCHAR(50),
 	source VARCHAR(50),
 	created INTEGER(30),
@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS expired (
 CREATE INDEX IF NOT EXISTS idx_expired_id ON expired(id);
 
 CREATE TABLE IF NOT EXISTS name (
-	id INTEGER(10),
+	id INTEGER,
 	name VARCHAR(50) PRIMARY KEY,
 	created INTEGER(30),
 	last_login INTEGER(30),
@@ -40,7 +40,7 @@ CREATE INDEX IF NOT EXISTS idx_name_id ON name(id);
 CREATE INDEX IF NOT EXISTS idx_name_lastlogin ON name(last_login);
 
 CREATE TABLE IF NOT EXISTS address (
-	id INTEGER(10),
+	id INTEGER,
 	ip VARCHAR(50) PRIMARY KEY,
 	created INTEGER(30),
 	last_login INTEGER(30),
@@ -60,10 +60,8 @@ CREATE TABLE IF NOT EXISTS config (
 	db_version VARCHAR(12)
 );
 CREATE TABLE IF NOT EXISTS violation (
-	src_id INTEGER(10),
-	target_id INTEGER(10),
-	ip VARCHAR(50),
-	created INTEGER(30)
+	id INTEGER PRIMARY KEY,
+	data VARCHAR
 );
 
 
@@ -71,7 +69,7 @@ CREATE TABLE IF NOT EXISTS violation (
 ------------------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS address_tmp (
-	id INTEGER(10),
+	id INTEGER,
 	ip VARCHAR(50) PRIMARY KEY ON CONFLICT IGNORE,
 	created INTEGER(30),
 	last_login INTEGER(30),
@@ -80,7 +78,7 @@ CREATE TABLE IF NOT EXISTS address_tmp (
 );
 
 CREATE TABLE IF NOT EXISTS active_tmp (
-	id INTEGER(10) PRIMARY KEY ON CONFLICT IGNORE,
+	id INTEGER PRIMARY KEY ON CONFLICT IGNORE,
 	name VARCHAR(50),
 	source VARCHAR(50),
 	created INTEGER(30),
@@ -90,7 +88,7 @@ CREATE TABLE IF NOT EXISTS active_tmp (
 );
 
 CREATE TABLE IF NOT EXISTS fixed (
-	id INTEGER(10),
+	id INTEGER,
 	name VARCHAR(50),
 	source VARCHAR(50),
 	created INTEGER(30),
@@ -104,17 +102,17 @@ CREATE TABLE IF NOT EXISTS fixed (
 );
 
 CREATE TABLE IF NOT EXISTS name_tmp (
-	id INTEGER(10),
+	id INTEGER,
 	name VARCHAR(50) PRIMARY KEY ON CONFLICT IGNORE,
 	created INTEGER(30),
 	last_login INTEGER(30),
 	login_count INTEGER(8) DEFAULT (1)
 );
 
--- transfer existing data to new tables
-----------------------------------------------
 
--- fix any id with a text entry in bans!
+-- fix text entry id's in bans table
+------------------------------------
+
 INSERT INTO fixed SELECT
 	playerdata.id,
 	name,
@@ -135,6 +133,9 @@ WHERE  typeof(bans.id) = 'text';
 DELETE FROM bans WHERE typeof(bans.id) = 'text';
 INSERT INTO bans SELECT * FROM fixed;
 
+-- transfer existing data to new tables
+----------------------------------------------
+
 -- insert the inactive bans into expired
 INSERT INTO expired SELECT
 	id,
@@ -147,7 +148,7 @@ INSERT INTO expired SELECT
 	u_reason,
 	u_date,
 	last_pos
-FROM bans WHERE active != 'true' AND typeof(id) = 'integer';
+FROM bans WHERE active != 'true';
 
 -- insert the active
 INSERT INTO active_tmp SELECT
@@ -158,7 +159,10 @@ INSERT INTO active_tmp SELECT
 	reason,
 	expires,
 	last_pos
-FROM bans WHERE active = 'true' AND typeof(id) = 'integer';
+FROM bans WHERE active = 'true';
+
+-- initialise expires
+UPDATE active SET expires = 0 WHERE expires = '';
 
 INSERT INTO address_tmp (id, ip, created) SELECT DISTINCT id, ip, created FROM playerdata;
 INSERT INTO name_tmp (id, name, created, last_login) SELECT DISTINCT id, name, created, last_login FROM playerdata;
