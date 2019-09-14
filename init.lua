@@ -188,64 +188,66 @@ end
 
 local createDb = [[
 CREATE TABLE IF NOT EXISTS active (
-	id INTEGER PRIMARY KEY,
+	id INTEGER(10) PRIMARY KEY,
 	name VARCHAR(50),
 	source VARCHAR(50),
-	created INTEGER,
+	created INTEGER(30),
 	reason VARCHAR(300),
-	expires INTEGER,
+	expires INTEGER(30),
 	pos VARCHAR(50)
 );
 
 CREATE TABLE IF NOT EXISTS expired (
-	id INTEGER,
+	id INTEGER(10) PRIMARY KEY,
 	name VARCHAR(50),
 	source VARCHAR(50),
-	created INTEGER,
+	created INTEGER(30),
 	reason VARCHAR(300),
-	expires INTEGER,
+	expires INTEGER(30),
 	u_source VARCHAR(50),
 	u_reason VARCHAR(300),
-	u_date INTEGER,
+	u_date INTEGER(30),
 	last_pos VARCHAR(50)
 );
+CREATE INDEX IF NOT EXISTS idx_expired_id ON expired(id);
 
 CREATE TABLE IF NOT EXISTS name (
-	id INTEGER,
+	id INTEGER(10),
 	name VARCHAR(50) PRIMARY KEY,
-	created INTEGER,
-	last_login INTEGER,
-	login_count INTEGER
+	created INTEGER(30),
+	last_login INTEGER(30),
+	login_count INTEGER(8) DEFAULT(1)
 );
+CREATE INDEX IF NOT EXISTS idx_name_id ON name(id);
+CREATE INDEX IF NOT EXISTS idx_name_lastlogin ON name(last_login);
 
 CREATE TABLE IF NOT EXISTS address (
-	id INTEGER,
+	id INTEGER(10),
 	ip VARCHAR(50) PRIMARY KEY,
-	created INTEGER,
-	last_login INTEGER,
-	login_count INTEGER,
+	created INTEGER(30),
+	last_login INTEGER(30),
+	login_count INTEGER(8) DEFAULT(1),
 	violation BOOLEAN
 );
+CREATE INDEX IF NOT EXISTS idx_address_id ON address(id);
+CREATE INDEX IF NOT EXISTS idx_address_lastlogin ON address(last_login);
 
 CREATE TABLE IF NOT EXISTS whitelist (
 	name_or_ip VARCHAR(50) PRIMARY KEY,
 	source VARCHAR(50),
-	created INTEGER
+	created INTEGER(30)
 );
-
 CREATE TABLE IF NOT EXISTS config (
 	mod_version VARCHAR(12),
 	db_version VARCHAR(12)
 );
-
 CREATE TABLE IF NOT EXISTS violation (
-	src_id INTEGER (10) PRIMARY KEY,
-	target_id INTEGER (10),
-	ip TEXT (20),
-	created INTEGER (30)
+	src_id INTEGER(10),
+	target_id INTEGER(10),
+	ip VARCHAR(50),
+	created INTEGER(30)
 );
 ]]
-
 db_exec(createDb)
 
 --[[
@@ -364,7 +366,7 @@ local function get_active_bans()
 	local r, q = {}
 	q = "SELECT * FROM active;"
 	for row in db:nrows(q) do
-		r[tostring(row.id)] = row
+		r[row.id] = row
 	end
 	return r
 end
@@ -375,7 +377,7 @@ local function get_whitelist()
 	local r = {}
 	local q = "SELECT * FROM whitelist;"
 	for row in db:nrows(q) do
-		r[row.name] = true
+		r[row.name_or_ip] = true
 	end
 	return r
 end
@@ -451,7 +453,7 @@ local function display_record(caller, target)
 			):format(i, r[i].ip, d))
 		end
 		r = violation_records(id)
-		if #r > 0 then
+		if r then
 			minetest.chat_send_player(caller, "\nViolation records: " .. #r .. "\n")
 			for i,v in ipairs(r) do
 				minetest.chat_send_player(caller,
@@ -493,13 +495,13 @@ local function display_record(caller, target)
 		minetest.chat_send_player(caller, "\nNo ban records!")
 	end
 
-	r = bans[tostring(id)]
+	r = bans[id]
 	local ban = tostring(r ~= nil)
 	minetest.chat_send_player(caller, "Current Status:")
 	if ban == 'true' then
 		local expires = "never"
 		local d = hrdf(r.created)
-		if type(r.expires) == "number" then
+		if type(r.expires) == "number" and r.expires > 0 then
 			expires = hrdf(r.expires)
 		end
 		minetest.chat_send_player(caller,
@@ -700,6 +702,8 @@ local function create_ban_record(name, source, reason, expires)
 	local player = minetest.get_player_by_name(name)
 	local p_reason = escape_string(reason)
 
+	expires = expires or 0
+
 	-- initialise last position
 	local last_pos = ""
 	if player then
@@ -707,7 +711,7 @@ local function create_ban_record(name, source, reason, expires)
 	end
 
 	-- cache the ban
-	bans[tostring(id)] = {
+	bans[id] = {
 		id = id,
 		name = name,
 		source = source,
@@ -813,22 +817,22 @@ local function update_address(id, ip)
 end
 
 -- Update ban record
--- @param id_key string
+-- @param id integer
 -- @param source name string
 -- @param reason string
 -- @param name string
 -- @return nil
-local function update_ban_record(id_key, source, reason, name)
+local function update_ban_record(id, source, reason, name)
 	reason = escape_string(reason)
 	local ts = os.time()
-	local row = bans[id_key] -- use cached data
+	local row = bans[id] -- use cached data
 	local stmt = ([[
 		INSERT INTO expired VALUES (%i,'%s','%s',%i,'%s',%i,'%s','%s',%i,'%s');
 		DELETE FROM active WHERE id = %i;
 	]]):format(row.id, row.name, row.source, row.created, escape_string(row.reason),
 	row.expires, source, reason, ts, row.last_pos, row.id)
 	db_exec(stmt)
-	bans[id_key] = nil -- update cache
+	bans[id] = nil -- update cache
 	-- log event
 	minetest.log("action",
 	("[sban] %s unbanned by %s reason: %s"):format(name, source, reason))
@@ -863,7 +867,7 @@ local function del_ban_record(id)
 		DELETE FROM active WHERE id = %i
 	]]):format(id)
 	db_exec(stmt)
-	bans[tostring(id)] = nil -- update cache
+	bans[id] = nil -- update cache
 end
 
 -- Remove whitelist entry
@@ -871,7 +875,7 @@ end
 -- @return nil
 local function del_whitelist(name_or_ip)
 	local stmt = ([[
-		DELETE FROM whitelist WHERE name = '%s'
+		DELETE FROM whitelist WHERE name_or_ip = '%s'
 	]]):format(name_or_ip)
 	db_exec(stmt)
 end
@@ -1034,7 +1038,7 @@ if importer then
 					id = create_player_record(name, ip)
 				end
 				-- check for existing ban
-				if not bans[tostring(id)] then
+				if not bans[id] then
 					-- create ban entry - name,source,reason,expires
 					create_ban_record(name, 'sban', 'imported from ipban.txt', '')
 				end
@@ -1162,13 +1166,13 @@ if importer then
 				}
 			end
 			t[#t+1] = {
-				time = bans[tostring(id)].created,
-				source = bans[tostring(id)].source,
-				reason = bans[tostring(id)].reason
+				time = bans[id].created,
+				source = bans[id].source,
+				reason = bans[id].reason
 			}
 			xport[id].record = t
-			xport[id].last_seen = bans[tostring(id)].last_login
-			xport[id].last_pos = bans[tostring(id)].last_pos
+			xport[id].last_seen = bans[id].last_login
+			xport[id].last_pos = bans[id].last_pos
 		end
 
 		local function repr(x)
@@ -1399,7 +1403,7 @@ local function update_state(name, selected)
 	local id = get_id(selected)
 
 	fs.ban = player_ban_expired(id)
-	local cur = bans[tostring(id)]
+	local cur = bans[id]
 	if cur then table.insert(fs.ban, cur) end
 
 	local info = "Ban records: "..#fs.ban.."\n"
@@ -1552,7 +1556,7 @@ minetest.register_on_player_receive_fields(function(player, formname, fields)
 				if selected == owner then
 					fs.info = "you do not have permission to do that!"
 				else
-					create_ban_record(selected, name, ESC(fields.reason), '')
+					create_ban_record(selected, name, ESC(fields.reason), 0)
 				end
 			elseif fields.unban then
 				update_ban_record(id, name, ESC(fields.reason), selected)
@@ -1598,12 +1602,12 @@ minetest.override_chatcommand("ban", {
 			return false, "Insufficient privileges!"
 		end
 
-		local expires = ''
+		local expires = 0
 		local id = get_id(player_name)
 
 		if id then
 			-- check for existing ban
-		   if bans[tostring(id)] then
+		   if bans[id] then
 			   return true, ("%s is already banned!"):format(player_name)
 		   end
 			-- limit ban?
@@ -1760,7 +1764,7 @@ minetest.register_chatcommand("tempban", {
 		-- is player already banned?
 		local id = get_id(player_name)
 		if id then
-			if bans[tostring(id)] then
+			if bans[id] then
 				return true, ("%s is already banned!"):format(player_name)
 			end
 			create_ban_record(player_name, name, reason, expires)
@@ -1793,7 +1797,7 @@ minetest.override_chatcommand("unban", {
 		-- look for records by id
 		local id = get_id(player_name)
 		if id then
-			if not bans[tostring(id)] then
+			if not bans[id] then
 				return false, ("No active ban record for "..player_name)
 			end
 			update_ban_record(id, name, reason, player_name)
@@ -1903,7 +1907,7 @@ sban.ban = function(name, source, reason, expires)
 	local id = get_id(name)
 	if not id then
 		return false, ("No records exist for %s"):format(name)
-	elseif bans[tostring(id)] then
+	elseif bans[id] then
 		-- only one active ban per id
 		return false, ("An active ban already exist for %s"):format(name)
 	end
@@ -1925,7 +1929,7 @@ sban.unban = function(name, source, reason)
 	-- look for records by id
 	local id = get_id(name)
 	if id then
-		if not bans[tostring(id)] then
+		if not bans[id] then
 			return false, ("No active ban record for "..name)
 		end
 		update_ban_record(id, name, reason, name)
@@ -1941,7 +1945,7 @@ end
 sban.ban_status = function(name_or_ip)
 	assert(type(name_or_ip) == 'string')
 	local id = get_id(name_or_ip)
-	return bans[tostring(id)] ~= nil
+	return bans[id] ~= nil
 end
 
 -- Fetch ban status for a player name or ip address
@@ -1951,7 +1955,7 @@ sban.ban_record = function(name_or_ip)
 	assert(type(name_or_ip) == 'string')
 	local id = get_id(name_or_ip)
 	if id then
-		return bans[tostring(id)]
+		return bans[id]
 	end
 end
 
@@ -1984,9 +1988,9 @@ minetest.register_on_prejoinplayer(function(name, ip)
 	local id = get_id(name) or get_id(ip)
 
 	if not id then return end -- unknown player
-	if owner_id and owner_id == id then return end -- owner bypass
+	if not dev and owner_id and owner_id == id then return end -- owner bypass
 
-	local data = bans[tostring(id)]
+	local data = bans[id]
 
 	if not data then
 		-- check names per id
