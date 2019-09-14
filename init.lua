@@ -42,7 +42,7 @@ local DB = WP.."/sban.sqlite"
 local db_version = '0.2.1'
 local db = _sql.open(DB) -- connection
 local expiry, owner, owner_id, def_duration, display_max, names_per_id
-local importer, ID, HL_Max, max_cache_records, ttl, cap
+local importer, ID, HL_Max, max_cache_records, ttl, cap, t_id
 local formstate = {}
 local t_units = {
 	s = 1, S=1, m = 60, h = 3600, H = 3600,
@@ -1291,6 +1291,7 @@ WL = get_whitelist()
 bans = get_active_bans()
 ID = last_id() or 0
 owner_id = get_id(owner)
+t_id = {}
 
 -- Add an entry to and manage size of hotlist
 -- @param name string
@@ -1334,6 +1335,16 @@ local function process_expired_bans()
 	end
 end
 process_expired_bans() -- trigger on mod load
+
+local function clean_join_cache(name)
+	local ts = os.time()
+	local stale = 10 -- ttl in seconds
+	for k,v in pairs(t_id) do
+		if (v.ts + stale) < ts or k == name then
+			t_id[k] = nil
+		end
+	end
+end
 
 --[[
 ###########
@@ -1976,8 +1987,6 @@ minetest.register_on_shutdown(function()
 	db:close()
 end)
 
-local t_id = {}
-
 -- Register callback for prejoin event
 minetest.register_on_prejoinplayer(function(name, ip)
 	-- whitelist bypass
@@ -1994,7 +2003,8 @@ minetest.register_on_prejoinplayer(function(name, ip)
 
 	t_id[name] = {
 		id = id,
-		ip = ip
+		ip = ip,
+		ts = os.time()
 	}
 
 	local data = bans[id]
@@ -2040,8 +2050,7 @@ minetest.register_on_prejoinplayer(function(name, ip)
 		end
 		return ("Banned: Expires: %s, Reason: %s"):format(date, data.reason)
 	end
-	-- delete cached entry
-	minetest.after(10, function() t_id[name] = nil	end)
+
 end)
 
 -- Register callback for join event
@@ -2057,6 +2066,7 @@ minetest.register_on_joinplayer(function(player)
 	else
 		id = buf.id
 		ip = buf.ip
+		clean_join_cache(name)
 	end
 
 	if not ip then return end
