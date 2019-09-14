@@ -1976,6 +1976,8 @@ minetest.register_on_shutdown(function()
 	db:close()
 end)
 
+local t_id = {}
+
 -- Register callback for prejoin event
 minetest.register_on_prejoinplayer(function(name, ip)
 	-- whitelist bypass
@@ -1989,6 +1991,11 @@ minetest.register_on_prejoinplayer(function(name, ip)
 
 	if not id then return end -- unknown player
 	if not dev and owner_id and owner_id == id then return end -- owner bypass
+
+	t_id[name] = {
+		id = id,
+		ip = ip
+	}
 
 	local data = bans[id]
 
@@ -2033,15 +2040,27 @@ minetest.register_on_prejoinplayer(function(name, ip)
 		end
 		return ("Banned: Expires: %s, Reason: %s"):format(date, data.reason)
 	end
+	-- delete cached entry
+	minetest.after(10, function() t_id[name] = nil	end)
 end)
 
 -- Register callback for join event
 minetest.register_on_joinplayer(function(player)
 
 	local name = player:get_player_name()
-	local ip = minetest.get_player_ip(name)
+	local buf = t_id[name]
+	local id, ip
+
+	if not buf then
+		id = get_id(name)
+		ip = minetest.get_player_ip(name)
+	else
+		id = buf.id
+		ip = buf.ip
+	end
+
 	if not ip then return end
-	local id = get_id(name) -- name search
+
 
 	manage_hotlist(name)
 	trim_cache()
