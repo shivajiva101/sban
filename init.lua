@@ -1938,22 +1938,30 @@ minetest.register_chatcommand("/whois", {
 -- @param name string
 -- @param source string
 -- @param reason string
--- @param expires integer
--- @return bool and msg string or nil
+-- @param expires alphanumerical duration string or integer
+-- @return bool
+-- @return msg string
 sban.ban = function(name, source, reason, expires)
 	-- check params are valid
 	assert(type(name) == 'string')
 	assert(type(source) == 'string')
 	assert(type(reason) == 'string')
-	if expires then
-		assert(type(expires) == 'string')
+	if expires and type(expires) == 'string' then
 		expires = parse_time(expires)
+	elseif expires and type(expires) == "integer" then
+		local ts = os.time()
+		if expires < ts then
+			expires = ts + expires
+		end
+	end
+	if name == owner then
+		return false, 'insufficient privileges!'
 	end
 	local id = get_id(name)
 	if not id then
 		return false, ("No records exist for %s"):format(name)
 	elseif bans[id] then
-		-- only one active ban per id
+		-- only one active ban per id is reqd!
 		return false, ("An active ban already exist for %s"):format(name)
 	end
 	-- ban player
@@ -2004,10 +2012,10 @@ sban.ban_record = function(name_or_ip)
 	end
 end
 
--- Fetch ban status for a player name or ip address
+-- Fetch active bans
 -- @return keypair table of active bans
 sban.list_active = function()
-	return get_active_bans()
+	return bans
 end
 
 --[[
