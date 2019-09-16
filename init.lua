@@ -41,6 +41,7 @@ local hotlist = {}
 local DB = WP.."/sban.sqlite"
 local db_version = '0.2.1'
 local db = _sql.open(DB) -- connection
+local mod_version = '0.2.0'
 local expiry, owner, owner_id, def_duration, display_max, names_per_id
 local importer, ID, HL_Max, max_cache_records, ttl, cap, t_id
 local formstate = {}
@@ -238,8 +239,8 @@ CREATE TABLE IF NOT EXISTS whitelist (
 	created INTEGER(30)
 );
 CREATE TABLE IF NOT EXISTS config (
-	mod_version VARCHAR(12),
-	db_version VARCHAR(12)
+	setting VARCHAR(28) PRIMARY KEY,
+	data VARCHAR(255)
 );
 CREATE TABLE IF NOT EXISTS violation (
 	id INTEGER PRIMARY KEY,
@@ -381,14 +382,14 @@ local function get_whitelist()
 end
 
 -- Fetch config setting
--- @param str setting name string
--- @return setting string
-local function get_setting(str)
-	local q = ([[SELECT %s FROM config;]]):format(str)
+-- @param name setting string
+-- @return data string
+local function get_setting(name)
+	local q = ([[SELECT data FROM config WHERE setting = '%s';]]):format(name)
 	local it, state = db:nrows(q)
 	local row = it(state)
 	if row then
-		return row[str]
+		return row.data
 	end
 end
 
@@ -796,11 +797,10 @@ end
 -- initialise db version
 -- @param str version string
 -- @return nil
-local function init_version(str)
+local function init_setting(setting, data)
 	local stmt = ([[
-			INSERT INTO config (db_version)
-			VALUES ('%s')
-			]]):format(str)
+		INSERT INTO config VALUES ('%s', '%s');
+	]]):format(setting, data)
 	db_exec(stmt)
 end
 
@@ -914,7 +914,7 @@ local function del_whitelist(name_or_ip)
 	db_exec(stmt)
 end
 
---[[
+--[[data
 #######################
 ###  Export/Import  ###
 #######################
@@ -1311,10 +1311,11 @@ end
 ##############
 ]]
 
--- initialise db version
+-- initialise config
 local current_version = get_setting("db_version")
-if not current_version then
-	init_version(db_version) -- clean run
+if not current_version then -- first run
+	init_setting('db_version', db_version)
+	init_setting('mod_version', mod_version)
 elseif current_version == "0.1" then
 	error("You must update sban database to "..db_version..
 	"\nUse sqlite3 to import /tools/sban_update.sql")
