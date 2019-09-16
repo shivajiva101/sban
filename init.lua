@@ -669,7 +669,8 @@ end
 -- @param ip string
 -- @return nil
 local function manage_idv_record(src_id, target_id, ip)
-	local ts, stmt = os.time()
+	local ts = os.time()
+	local stmt
 	local record = violation_record(src_id)
 	if record then
 		local idx
@@ -709,7 +710,6 @@ local function manage_idv_record(src_id, target_id, ip)
 			INSERT INTO violation VALUES (%i,'%s')
 		]]):format(src_id, minetest.serialize(record))
 		db_exec(stmt)
-		update_idv_status(ip)
 	end
 end
 
@@ -1373,9 +1373,9 @@ process_expired_bans() -- trigger on mod load
 
 local function clean_join_cache(name)
 	local ts = os.time()
-	local ttl = 10 -- ttl in seconds
+	local TTL = 10 -- ttl in seconds
 	for k,v in pairs(t_id) do
-		if (v.ts + ttl) < ts or k == name then
+		if (v.ts + TTL) < ts or k == name then
 			t_id[k] = nil
 		end
 	end
@@ -2142,6 +2142,7 @@ minetest.register_on_joinplayer(function(player)
 		elseif target_id ~= id then
 			-- ip registered to another id!
 			manage_idv_record(id, target_id, ip)
+			update_idv_status(ip)
 		else
 			update_address(id, ip)
 		end
