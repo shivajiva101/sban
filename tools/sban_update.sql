@@ -103,6 +103,19 @@ CREATE TABLE IF NOT EXISTS fix_tmp (
 	last_pos VARCHAR(50)
 );
 
+CREATE TABLE IF NOT EXISTS expired_tmp (
+	id       INTEGER,
+	name     VARCHAR (50),
+	source   VARCHAR (50),
+	created  INTEGER (30),
+	reason   VARCHAR (300),
+	expires  INTEGER (30),
+	u_source VARCHAR (50),
+	u_reason VARCHAR (300),
+	u_date   INTEGER (30),
+	last_pos VARCHAR (50)
+);
+
 CREATE TABLE IF NOT EXISTS name_tmp (
 	id INTEGER,
 	name VARCHAR(50) PRIMARY KEY ON CONFLICT IGNORE,
@@ -188,11 +201,26 @@ UPDATE active SET expires = 0 WHERE expires = '';
 INSERT INTO config VALUES('db_version', '0.2.1');
 INSERT INTO config VALUES('mod_version', '0.2.0');
 
-INSERT INTO address_tmp (id, ip, created, last_login) SELECT DISTINCT id,ip, created, last_login FROM playerdata;
-INSERT INTO name_tmp (id, name, created, last_login) SELECT DISTINCT id, name, created, last_login FROM playerdata;
+-- insert tmp table data
+INSERT INTO address_tmp (id,ip,created,last_login)
+	SELECT DISTINCT id, ip, created, last_login FROM playerdata;
+INSERT INTO name_tmp (id,name,created,last_login)
+	SELECT DISTINCT id, name, created, last_login FROM playerdata;
+
+-- copy data from tmp tables
 INSERT INTO address SELECT * FROM address_tmp;
 INSERT INTO active SELECT * FROM active_tmp;
 INSERT INTO name SELECT * FROM name_tmp;
+
+-- process missed expired active entries
+INSERT INTO expired_tmp (id,name,source,created,reason,expires,last_pos)
+	SELECT * FROM active WHERE expires < strftime('%s','now');
+UPDATE expired_tmp SET
+	u_source = 'sban_update',
+	u_reason = 'ban expired',
+	u_date = strftime('%s','now');
+INSERT INTO expired SELECT * FROM expired_tmp;
+DELETE FROM active WHERE expires < strftime('%s','now');
 
 -- clean up temporary tables
 -----------------------------------------
@@ -205,9 +233,11 @@ DROP TABLE players;
 DROP TABLE playerdata;
 DROP TABLE version;
 DROP TABLE fix_tmp;
+DROP TABLE expired_tmp;
 
 COMMIT;
 
 PRAGMA foreign_keys = ON;
 
+-- compact db
 VACUUM;
