@@ -89,7 +89,7 @@ end
 ]]
 
 -- debugging ONLY!!!
-local dev = true -- change this to false for release
+local dev = false
 if dev then
 	db:trace(
 		function(ud, sql)
