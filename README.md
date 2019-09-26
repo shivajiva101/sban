@@ -1,6 +1,7 @@
 # sban
 
 [![Build Status](https://travis-ci.org/shivajiva101/sban.svg?branch=master)](https://travis-ci.org/shivajiva101/sban)
+
 Existing users please note that to use this version you need to apply sban/tools/sban_update.sql so backup your database to somewhere safe and copy sban/tools/sban_update.sql to the world you want to appy the update to and in a terminal navigate to the world folder and use the commands:
 
 	sqlite3 sban.sqlite
