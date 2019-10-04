@@ -43,7 +43,7 @@ local db_version = '0.2.1'
 local db = _sql.open(DB) -- connection
 local mod_version = '0.2.0'
 local expiry, owner, owner_id, def_duration, display_max, names_per_id
-local importer, ID, HL_Max, max_cache_records, ttl, cap, t_id
+local importer, ID, HL_Max, max_cache_records, ttl, cap, t_id, ip_limit
 local formstate = {}
 local t_units = {
 	s = 1, S=1, m = 60, h = 3600, H = 3600,
@@ -65,6 +65,7 @@ if minetest.settings then
 	def_duration = minetest.settings:get("sban.fs_duration") or "1w"
 	display_max = tonumber(minetest.settings:get("sban.display_max")) or 10
 	names_per_id = tonumber(minetest.settings:get("sban.accounts_per_id"))
+	ip_limit = tonumber(minetest.settings:get("sban.ip_limit"))
 	importer = minetest.settings:get("sban.import_enabled") or true
 	HL_Max = tonumber(minetest.settings:get("sban.hotlist_max")) or 15
 	max_cache_records = tonumber(minetest.settings:get("sban.cache.max")) or 1000
@@ -76,6 +77,7 @@ else
 	def_duration = minetest.setting_get("sban.fs_duration") or "1w"
 	display_max = tonumber(minetest.setting_get("sban.display_max")) or 10
 	names_per_id = tonumber(minetest.setting_get("sban.accounts_per_id"))
+	ip_limit = tonumber(minetest.setting_get("sban.ip_limit"))
 	importer = minetest.setting_getbool("sban.import_enable") or true
 	HL_Max = tonumber(minetest.setting_get("sban.hotlist_max")) or 15
 	max_cache_records = tonumber(minetest.setting_get("sban.cache_max")) or 1000
@@ -2058,14 +2060,14 @@ minetest.register_on_prejoinplayer(function(name, ip)
 			-- names per id
 			local names = name_records(id)
 			-- allow existing
-			for i,v in ipairs(names) do
+			for _,v in ipairs(names) do
 				if v.name == name then return end
 			end
 			-- check player isn't exceeding account limit
 			if #names >= names_per_id then
 				-- create string list
 				local msg = ""
-				for i,v in ipairs(names) do
+				for _,v in ipairs(names) do
 					msg = msg..v.name..", "
 				end
 				msg = msg:sub(1, msg:len() - 2) -- trim trailing ','
@@ -2074,8 +2076,17 @@ minetest.register_on_prejoinplayer(function(name, ip)
 				..msg)
 			end
 		end
+		-- check ip's per id
+		if ip_limit then
+			local t = address_records(id)
+			for _,v in ipairs(t) do
+				if v.ip == ip then return end
+			end
+			if #t >= ip_limit then
+				return "\nYou exceeded the limit of ip addresses for an account!"
+			end
+		end	
 
-		return
 	else
 		-- check for ban expiry
 		local date
