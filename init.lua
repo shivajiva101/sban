@@ -2085,7 +2085,7 @@ minetest.register_on_prejoinplayer(function(name, ip)
 			if #t >= ip_limit then
 				return "\nYou exceeded the limit of ip addresses for an account!"
 			end
-		end	
+		end
 
 	else
 		-- check for ban expiry
