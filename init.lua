@@ -697,7 +697,7 @@ local function manage_idv_record(src_id, target_id, ip)
 			}
 		end
 		stmt = ([[
-			UPDATE violation SET data = '%s' WHERE id = i%;
+			UPDATE violation SET data = '%s' WHERE id = %i;
 		]]):format(minetest.serialize(record), src_id)
 		db_exec(stmt)
 	else
