@@ -771,7 +771,7 @@ local function create_ban_record(name, source, reason, expires)
 
 	-- create kick & log messages
 	local msg_k, msg_l
-	if expires ~= "" then
+	if expires ~= 0 then
 		local date = hrdf(expires)
 		msg_k = ("Banned: Expires: %s, Reason: %s"
 		):format(date, reason)
@@ -994,7 +994,7 @@ if importer then
 			if e.banned == true then
 				local names = {}
 				local ip = {}
-				local last_seen = e.last_seen
+				local last_seen = e.last_seen or 0
 				local last_pos = e.last_pos or ""
 				local q
 				-- each entry in xban db contains a names field, both IP and names
@@ -1041,7 +1041,7 @@ if importer then
 
 					for _, v in ipairs(e.record) do
 						-- ban fields: id,name,source,created,reason,expires,last_pos
-						local expires = v.expires or ""
+						local expires = v.expires or 0
 						q = ([[
 						INSERT INTO active
 						VALUES (%i,'%s','%s',%i,'%s',%i,'%s');
@@ -1089,7 +1089,7 @@ if importer then
 	local function sql_string(id, entry)
 		local names = {}
 		local ip = {}
-		local last_seen = entry.last_seen
+		local last_seen = entry.last_seen or 0
 		local last_pos = entry.last_pos or ""
 
 		-- names field includes both IP and names data, sort into 2 tables
@@ -1101,7 +1101,7 @@ if importer then
 			end
 		end
 
-		local q
+		local q = ""
 
 		for i, v in ipairs(names) do
 			q = q..("INSERT INTO name (id,name,created,last_login) VALUES (%i,'%s',%i,%i);\n"
@@ -1121,7 +1121,7 @@ if importer then
 			end
 			-- id,name,source,created,reason,expires,last_pos
 			for i, v in ipairs(entry.record) do
-				local expires = v.expires or ""
+				local expires = v.expires or 0
 				local reason = string.gsub(v.reason, "'", "''")
 				reason = string.gsub(reason, "%:%)", "")
 				q = q..("INSERT INTO active VALUES (%i,'%s','%s',%i,'%s',%i,'%s');\n"
@@ -1208,7 +1208,7 @@ if importer then
 			}
 			xport[id].record = t
 			xport[id].last_seen = bans[id].last_login
-			xport[id].last_pos = bans[id].last_pos
+			xport[id].last_pos = bans[id].last_pos or ""
 		end
 
 		local function repr(x)
@@ -1358,7 +1358,7 @@ local function process_expired_bans()
 			if ts > row.expires then
 				-- add sql statements
 				tq[#tq+1] = ([[
-					INSERT INTO expired VALUES (%i,'%s','%s',%i,'%s',%i,'sban','tempban expiry',%i,'%s');
+					INSERT INTO expired VALUES (%i,'%s','%s',%i,'%s',%i,'sban','tempban expired',%i,'%s');
 					DELETE FROM active WHERE id = %i;
 				]]):format(row.id, row.name, row.source, row.created, escape_string(row.reason),
 				row.expires, ts, row.last_pos, row.id)
@@ -1399,7 +1399,7 @@ local function create_info(entry)
 	end
 	local str = "Banned by: "..entry.source.."\n"
 		.."When: "..hrdf(entry.created).."\n"
-	if entry.expires ~= '' then
+	if entry.expires ~= 0 then
 		str = str.."Expires: "..hrdf(entry.expires).."\n"
 	end
 	str = str .."Reason: "
