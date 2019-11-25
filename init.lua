@@ -28,6 +28,7 @@ if sqlite3 then sqlite3 = nil end
 minetest.register_privilege("ban_admin", {
 	description = "ban administrator",
 	give_to_singleplayer = false,
+	give_to_admin = true,
 })
 
 local WP = minetest.get_worldpath()
