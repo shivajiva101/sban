@@ -1357,6 +1357,7 @@ local function process_expired_bans()
 		if type(row.expires) == "number" and row.expires ~= 0 then
 			-- temp ban
 			if ts > row.expires then
+				row.last_pos = row.last_pos or "" -- can't be nil!
 				-- add sql statements
 				tq[#tq+1] = ([[
 					INSERT INTO expired VALUES (%i,'%s','%s',%i,'%s',%i,'sban','tempban expired',%i,'%s');
