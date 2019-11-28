@@ -1960,35 +1960,41 @@ minetest.override_chatcommand("kick", {
 
 -- Register whois command
 minetest.register_chatcommand("/whois", {
-	description = "Returns info on a player",
+	params = "<player> [v]",
+	description = "Returns info on a player, use v for full record.",
 	privs = {ban_admin = true},
 	func = function(name, param)
-		if not param then
-			return false, "usage: /whois <player>"
+		local list = {}
+		for word in param:gmatch("%S+") do
+			list[#list+1] = word
 		end
-		local id = get_id(param)
+		if #list < 1 then
+			return false, "usage: /whois <player> [v]"
+		end
+		local pname = list[1]
+		local id = get_id(pname)
 		if not id then
-			return false, "The player \"" .. param .. "\" did not join yet."
+			return false, "The player \"" .. pname .. "\" did not join yet."
 		end
-		local data = name_records(id)
-		local msg1, msg2 = "", ""
-		for i, v in ipairs(data) do
-			if msg1 ~= "" then
-				msg1 = msg1 .. ", " .. v.name
-			else
-				msg1 = msg1 .. " " .. v.name
-			end
+		local names = name_records(id)
+		local ips = address_records(id)
+		local msg = "\nNames: "
+		local n, a = {}, {}
+		for i, v in ipairs(names) do
+			n[#n+1] = v.name
 		end
-		msg1 = msg1 .. "\nIP Adresses: "
-		data = address_records(id)
-		for i, v in ipairs(data) do
-			if msg2 ~= "" then
-				msg2 = msg2 .. ", " .. v.ip
-			else
-				msg2 = msg2 .. " " .. v.ip
-			end
+		for i, v in ipairs(ips) do
+			a[#a+1] = v.ip
 		end
-		return false, "Player info for " .. param .. ": " .. msg1 .. msg2
+		msg = msg .. table.concat(n, ", ")
+		if #list > 1 and list[2] == "v" then
+			msg = msg .. "\nIP Addresses:\n "
+			msg = msg .. table.concat(a, ", ")
+		else
+			msg = msg .. "\nLast IP Address: "
+			msg = msg .. a[1]
+		end
+		return false, "Player info for " .. pname .. ": " .. msg
 	end,
 })
 
