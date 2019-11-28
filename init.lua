@@ -51,7 +51,7 @@ local t_units = {
 	d = 86400, D = 86400, w = 604800, W = 604800,
 	M = 2592000, y = 31104000, Y = 31104000, [""] = 1
 }
-
+local createDb, tmp_db, tmp_final
 sban = {}
 
 --[[
@@ -184,15 +184,12 @@ local function ip_key(str)
 	result:gsub('%:', '')
 	return result
 end
---[[
-#################################
-###  Database: Create Tables  ###
-#################################
-]]
 
-local createDb = [[
+if importer then
+
+createDb = [[
 CREATE TABLE IF NOT EXISTS active (
-	id INTEGER PRIMARY KEY,
+	id INTEGER(10) PRIMARY KEY,
 	name VARCHAR(50),
 	source VARCHAR(50),
 	created INTEGER(30),
@@ -202,7 +199,7 @@ CREATE TABLE IF NOT EXISTS active (
 );
 
 CREATE TABLE IF NOT EXISTS expired (
-	id INTEGER,
+	id INTEGER(10),
 	name VARCHAR(50),
 	source VARCHAR(50),
 	created INTEGER(30),
@@ -216,7 +213,7 @@ CREATE TABLE IF NOT EXISTS expired (
 CREATE INDEX IF NOT EXISTS idx_expired_id ON expired(id);
 
 CREATE TABLE IF NOT EXISTS name (
-	id INTEGER,
+	id INTEGER(10),
 	name VARCHAR(50) PRIMARY KEY,
 	created INTEGER(30),
 	last_login INTEGER(30),
@@ -241,16 +238,93 @@ CREATE TABLE IF NOT EXISTS whitelist (
 	source VARCHAR(50),
 	created INTEGER(30)
 );
+
 CREATE TABLE IF NOT EXISTS config (
 	setting VARCHAR(28) PRIMARY KEY,
 	data VARCHAR(255)
 );
+
 CREATE TABLE IF NOT EXISTS violation (
 	id INTEGER PRIMARY KEY,
 	data VARCHAR
 );
+
 ]]
 db_exec(createDb)
+
+tmp_db = [[
+CREATE TABLE IF NOT EXISTS tmp_a (
+	id INTEGER(10),
+	name VARCHAR(50),
+	created INTEGER(30),
+	last_login INTEGER(30),
+	login_count INTEGER(8) DEFAULT(1)
+);
+
+CREATE TABLE IF NOT EXISTS tmp_b (
+	id INTEGER(10),
+	ip VARCHAR(50),
+	created INTEGER(30),
+	last_login INTEGER(30),
+	login_count INTEGER(8) DEFAULT(1),
+	violation BOOLEAN
+);
+
+CREATE TABLE IF NOT EXISTS tmp_c (
+	id INTEGER(10),
+	name VARCHAR(50),
+	source VARCHAR(50),
+	created INTEGER(30),
+	reason VARCHAR(300),
+	expires INTEGER(30),
+	pos VARCHAR(50)
+);
+
+CREATE TABLE IF NOT EXISTS tmp_d (
+	id INTEGER(10),
+	name VARCHAR(50),
+	source VARCHAR(50),
+	created INTEGER(30),
+	reason VARCHAR(300),
+	expires INTEGER(30),
+	u_source VARCHAR(50),
+	u_reason VARCHAR(300),
+	u_date INTEGER(30),
+	last_pos VARCHAR(50)
+);
+
+]]
+
+tmp_final = [[
+
+DELETE FROM tmp_a where rowid NOT IN (SELECT min(rowid) FROM tmp_a GROUP BY name);
+DELETE FROM tmp_b where rowid NOT IN (SELECT min(rowid) FROM tmp_b GROUP BY ip);
+DELETE FROM tmp_c where rowid NOT IN (SELECT min(rowid) FROM tmp_c GROUP BY id);
+
+INSERT INTO name (id, name, created, last_login, login_count)
+	SELECT * FROM tmp_a WHERE tmp_a.name NOT IN (SELECT name FROM name);
+
+INSERT INTO address(id, ip, created, last_login, login_count, violation)
+	SELECT * FROM tmp_b WHERE tmp_b.ip NOT IN (SELECT ip FROM address);
+
+INSERT INTO active (id, name, source, created, reason, expires, pos)
+	SELECT * FROM tmp_c WHERE tmp_c.id NOT IN (SELECT id FROM active);
+
+INSERT INTO expired (id, name, source,created, reason, expires, u_source, u_reason, u_date, last_pos)
+	SELECT * FROM tmp_d;
+
+DROP TABLE tmp_a;
+DROP TABLE tmp_b;
+DROP TABLE tmp_c;
+DROP TABLE tmp_d;
+
+COMMIT;
+
+PRAGMA foreign_keys = ON;
+
+VACUUM;
+]]
+end
 
 --[[
 ###########################
@@ -917,12 +991,13 @@ local function del_whitelist(name_or_ip)
 	db_exec(stmt)
 end
 
---[[data
+--[[
 #######################
 ###  Export/Import  ###
 #######################
 ]]
-if importer then
+
+if importer then -- always true for first run
 
 	-- Load and deserialise xban2 file
 	-- @param filename string
@@ -961,7 +1036,7 @@ if importer then
 	-- @return nil
 	local function save_sql(txt)
 		local file = ie.io.open(WP.."/xban.sql", "a")
-		if file then
+		if file and txt then
 			file:write(txt)
 			file:close()
 		end
@@ -973,8 +1048,73 @@ if importer then
 		ie.os.remove(WP.."/xban.sql")
 	end
 
-	-- Import xban2 file records
-	-- @param caller name string
+	-- Create SQL string
+	-- @param id integer
+	-- @param entry keypair table
+	-- @return formatted string
+	local function sql_string(id, entry)
+		local names = {}
+		local ip = {}
+		local last_seen = entry.last_seen or 0
+		local last_pos = entry.last_pos or ""
+
+		-- names field includes both IP and names data, sort into 2 tables
+		for k, v in pairs(entry.names) do
+			if is_ip(k) then
+				table.insert(ip, k)
+			else
+				table.insert(names, k)
+			end
+		end
+
+		local q = ""
+
+		for i, v in ipairs(names) do
+			q = q..("INSERT INTO tmp_a VALUES (%i,'%s',%i,%i, 0);\n"
+			):format(id, v, last_seen, last_seen)
+		end
+		for i, v in ipairs(ip) do
+			-- address fields: id,ip,created,last_login,login_count,violation
+			q = q..("INSERT INTO tmp_b VALUES (%i,'%s',%i,%i,1,0);\n"
+			):format(id, v, last_seen, last_seen)
+		end
+
+		if #entry.record > 0 then
+
+			local ts = os.time()
+			-- bans to archive
+			for i, v in ipairs(entry.record) do
+
+				local expires = v.expires or 0
+				local reason = string.gsub(v.reason, "'", "''")
+
+				reason = string.gsub(reason, "%:%)", "") -- remove colons
+
+				if last_pos.y then
+					last_pos = vector.round(last_pos)
+					last_pos = minetest.pos_to_string(last_pos)
+				end
+
+				if entry.reason and entry.reason == v.reason then
+					-- active ban
+					-- fields: id,name,source,created,reason,expires,last_pos
+					q = q..("INSERT INTO tmp_c VALUES (%i,'%s','%s',%i,'%s',%i,'%s');\n"
+					):format(id, names[1], v.source, v.time, reason, expires, last_pos)
+				else
+					-- expired ban
+					-- fields: id,name,source,created,reason,expires,u_source,u_reason,
+					-- u_date,last_pos
+					q = q..("INSERT INTO tmp_d VALUES (%i,'%s','%s',%i,'%s',%i,'%s','%s',%i,'%s');\n"
+					):format(id, names[1], v.source, v.time, reason, expires, 'sban',
+					'expired prior to import', ts, last_pos)
+				end
+			end
+		end
+
+		return q
+	end
+
+	-- Import xban2 file active ban records
 	-- @param file_name string
 	-- @return nil
 	local function import_xban(file_name)
@@ -982,78 +1122,41 @@ if importer then
 		local t, err = load_xban(file_name)
 
 		if not t then -- exit with error message
-			return t, err
+			return false, err
 		end
 
 		local id = ID
+		local bl = {}
+		local tl = {}
 
 		minetest.log("action", "processing "..#t.." records")
 
-		-- iterate the xban2 data
-		for i, e in ipairs(t) do
-			-- only process banned entries
-			if e.banned == true then
-				local names = {}
-				local ip = {}
-				local last_seen = e.last_seen or 0
-				local last_pos = e.last_pos or ""
-				local q
-				-- each entry in xban db contains a names field, both IP and names
-				-- are stored in this field, split into 2 tables
-				for k, v in pairs(e.names) do
-					if is_ip(k) then
-						table.insert(ip, k)
-					else
-						table.insert(names, k)
-					end
-				end
-				-- on the assumption that we ignore any duplicates
-				-- check for existing entry by name
-				local proceed = true
-				for _, v in ipairs(names) do
-					if not get_id(v) then
-						proceed = false
-						break
-					end
-				end
-				if proceed then
-					id = id + 1
-					-- process the entry
-					for _, v in ipairs(names) do
-						-- name fields: id,name,created,last_login
-						q = ([[
-						INSERT INTO name
-						VALUES (%i, '%s', %s, %s);
-						]]):format(id, v, last_seen, last_seen)
-						db_exec(q)
-					end
-					for _, v in ipairs(ip) do
-						-- address fields: id, ip, created
-						q = ([[
-						INSERT INTO address (id, ip, created)
-						VALUES (%i, '%s', %i);
-						]]):format(id, v, last_seen)
-						db_exec(q)
-					end
-					-- store position as string
-					if last_pos.y then
-						last_pos = minetest.pos_to_string(last_pos)
-					end
-
-					for _, v in ipairs(e.record) do
-						-- ban fields: id,name,source,created,reason,expires,last_pos
-						local expires = v.expires or 0
-						q = ([[
-						INSERT INTO active
-						VALUES (%i,'%s','%s',%i,'%s',%i,'%s');
-						]]):format(id, names[1], v.source, v.time,
-						escape_string(v.reason), expires, last_pos)
-						db_exec(q)
-					end
-					ID = id
-				end
+		for i, v in ipairs(t) do
+			if v.banned == true then
+				bl[#bl+1] = v
+				t[i] = nil
 			end
 		end
+
+		minetest.log("action", "found "..#bl.." active ban records")
+
+		tl[#tl+1] = "PRAGMA foreign_keys = OFF;\n"
+		tl[#tl+1] = tmp_db
+		tl[#tl+1] = "BEGIN TRANSACTION;"
+
+		for i = #bl, 1, -1 do
+			if bl[i] then
+				id = id + 1
+				tl[#tl+1] = sql_string(id, bl[i])
+				bl[i] = nil -- shrink
+			end
+		end
+
+		tl[#tl+1] = tmp_final
+		-- run the prepared statement
+		db_exec(table.concat(tl, "\n"))
+		ID = id -- update global
+		return true
 	end
 
 	-- Import ipban file records
@@ -1083,55 +1186,6 @@ if importer then
 		end
 	end
 
-	-- Create SQL string
-	-- @param id integer
-	-- @param entry keypair table
-	-- @return formatted string
-	local function sql_string(id, entry)
-		local names = {}
-		local ip = {}
-		local last_seen = entry.last_seen or 0
-		local last_pos = entry.last_pos or ""
-
-		-- names field includes both IP and names data, sort into 2 tables
-		for k, v in pairs(entry.names) do
-			if is_ip(k) then
-				table.insert(ip, k)
-			else
-				table.insert(names, k)
-			end
-		end
-
-		local q = ""
-
-		for i, v in ipairs(names) do
-			q = q..("INSERT INTO name (id,name,created,last_login) VALUES (%i,'%s',%i,%i);\n"
-			):format(id, v, last_seen, last_seen)
-		end
-		for i, v in ipairs(ip) do
-			-- address fields: id,ip,created
-			q = q..("INSERT INTO address (id, ip, created, last_login) VALUES (%i,'%s',%i,%i);\n"
-			):format(id, v, last_seen, last_seen)
-		end
-
-		if entry.reason then
-			-- convert position
-			if last_pos.y then
-				last_pos = vector.round(last_pos)
-				last_pos = minetest.pos_to_string(last_pos)
-			end
-			-- id,name,source,created,reason,expires,last_pos
-			for i, v in ipairs(entry.record) do
-				local expires = v.expires or 0
-				local reason = string.gsub(v.reason, "'", "''")
-				reason = string.gsub(reason, "%:%)", "")
-				q = q..("INSERT INTO active VALUES (%i,'%s','%s',%i,'%s',%i,'%s');\n"
-				):format(id, names[1], v.source, v.time, reason, expires, last_pos)
-			end
-		end
-		return q
-	end
-
 	-- Export xban2 file to SQL file
 	-- @param filename string
 	-- @return nil
@@ -1139,18 +1193,23 @@ if importer then
 		-- load the db, iterate in reverse order and remove each
 		-- record to balance the memory use otherwise large files
 		-- cause lua OOM error
-		local dbi = load_xban(filename)
+		local dbi, err = load_xban(filename)
 		local id = ID
+		if err then
+			minetest.log("info", err)
+			return
+		end
 		-- reverse the contents
 		for i = 1, math.floor(#dbi / 2) do
 			local tmp = dbi[i]
 			dbi[i] = dbi[#dbi - i + 1]
 			dbi[#dbi - i + 1] = tmp
 		end
-		-- add create tables string
+
+		save_sql("PRAGMA foreign_keys = OFF;\n\n")
 		save_sql(createDb)
-		-- add single transaction
-		save_sql("BEGIN;\n")
+		save_sql(tmp_db)
+		save_sql("BEGIN TRANSACTION;\n\n")
 		-- process records
 		for i = #dbi, 1, - 1 do
 			-- contains data?
@@ -1158,11 +1217,11 @@ if importer then
 				id = id + 1
 				local str = sql_string(id, dbi[i]) -- sql statement
 				save_sql(str)
-				dbi[i] = nil -- housekeeping
+				dbi[i] = nil -- shrink
 			end
 		end
-		-- close transaction
-		save_sql("END;")
+		-- add sql inserts to transfer the data, clean up and finalise
+		save_sql(tmp_final)
 	end
 
 	-- Export db bans to xban2 file format
@@ -1268,7 +1327,7 @@ if importer then
 			end
 			del_sql()
 			export_sql(filename)
-			return true, "xban2 dumped to " .. filename
+			return true, filename .. " dumped to xban.sql"
 		end
 	})
 
@@ -1282,7 +1341,7 @@ if importer then
 		end
 	})
 
-	-- Register import command
+	-- Register ban import command
 	minetest.register_chatcommand("ban_dbi", {
 		description = "Import bans",
 		params = "<filename>",
@@ -1300,7 +1359,7 @@ if importer then
 				local res, err = import_xban(filename)
 				msg = err
 				if res then
-					msg = filename.." imported!"
+					msg = filename.." bans imported!"
 				end
 			end
 			return true, msg
@@ -2038,8 +2097,7 @@ end)
 minetest.register_on_prejoinplayer(function(name, ip)
 	-- whitelist bypass
 	if WL[name] or WL[ip] then
-		minetest.log("action", "[sban] "..
-		name.." whitelisted entry permits login")
+		minetest.log("action", "[sban] " .. name .. " whitelist login")
 		return
 	end
 	-- known player?
@@ -2126,7 +2184,6 @@ minetest.register_on_joinplayer(function(player)
 	end
 
 	if not ip then return end
-
 
 	manage_hotlist(name)
 	trim_cache()
