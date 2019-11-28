@@ -236,6 +236,15 @@ Restricts accounts a player can make from an ip address.
 
 Please note this is optional and without the setting the player accounts are unrestricted.
 
+#### sban.import_enabled
+
+Disables the import/export sections of code.
+
+	sban.import_enabled = false
+
+The default is true, this setting allows you to save memory by disabling the code and commands associated with
+importing & exporting data and should only be set to false once you have imported any ban sources.
+
 #### sban.cache.max
 
 Maximum cached name records.
