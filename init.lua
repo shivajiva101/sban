@@ -394,7 +394,7 @@ end
 
 -- Fetch name records
 -- @param id integer
--- @return ipair table of name records
+-- @return ipair table of name records ordered by last login
 local function name_records(id)
 	local r, q = {}
 	q = ([[
@@ -409,7 +409,7 @@ end
 
 -- Fetch address records
 -- @param id integer
--- @return ipair table of ip address records
+-- @return ipair table of ip address records ordered by last login
 local function address_records(id)
 	local r, q = {}
 	q = ([[
@@ -478,6 +478,7 @@ local function display_record(caller, target)
 
 	local id = get_id(target)
 	local r = name_records(id)
+	local bld = {}
 
 	if not r then
 		minetest.chat_send_player(caller, "No records for "..target)
@@ -489,7 +490,8 @@ local function display_record(caller, target)
 	for i,v in ipairs(r) do
 		table.insert(names, v.name)
 	end
-	minetest.chat_send_player(caller, "\nNames: " .. table.concat(names, ", "))
+	bld[#bld+1] = minetest.colorize("#00FFFF", "\n[sban] records for: ") .. target
+	bld[#bld+1] = minetest.colorize("#00FFFF", "\nNames: ") .. table.concat(names, ", ")
 
 	local privs = minetest.get_player_privs(caller)
 
@@ -497,55 +499,53 @@ local function display_record(caller, target)
 	local idx = 1
 	if #r > display_max then
 		idx = #r - display_max
-		minetest.chat_send_player(caller,
-		"\nPlayer records: "..#r.." (showing last "..display_max.." records)\n")
+		bld[#bld+1] = minetest.colorize("#00FFFF", "\nName records: ")..#r..
+		minetest.colorize("#00FFFF", " (showing last ")..display_max..
+		minetest.colorize("#00FFFF", " records)")
 	else
-		minetest.chat_send_player(caller, "\nPlayer records: "..#r.."\n")
+		bld[#bld+1] = minetest.colorize("#00FFFF", "\nName records: ")..#r
 	end
 	for i = idx, #r do
 		local d1 = hrdf(r[i].created)
 		local d2 = hrdf(r[i].last_login)
-		minetest.chat_send_player(caller,
-			("[%s] Name: %s Created: %s Last login: %s\n"
-		):format(i, r[i].name, d1, d2))
+		bld[#bld+1] = (minetest.colorize("#FFC000",
+		"[%s]").." Name: %s Created: %s Last login: %s"):format(i, r[i].name, d1, d2)
 	end
 
 	if privs.ban_admin == true then
 		r = address_records(id)
 		if #r > display_max then
 			idx = #r - display_max
-			minetest.chat_send_player(caller,
-			"\nPlayer records: " .. #r ..
-			" (showing last " .. display_max .. " records)\n")
+			bld[#bld+1] = minetest.colorize("#0FF", "\nIP records: ") .. #r ..
+			minetest.colorize("#0FF", " (showing last ") .. display_max ..
+			minetest.colorize("#0FF", " records)")
 		else
-			minetest.chat_send_player(caller,
-			"\nPlayer records: " .. #r .. "\n")
+			bld[#bld+1] = minetest.colorize("#0FF", "\nIP records: ") .. #r
+			idx = 1
 		end
 		for i = idx, #r do
 			-- format utc values
 			local d = hrdf(r[i].created)
-			minetest.chat_send_player(caller,
-				("[%s] IP: %s Created: %s\n"
-			):format(i, r[i].ip, d))
+			bld[#bld+1] = (minetest.colorize("#FFC000", "[%s] ")..
+			"IP: %s Created: %s"):format(i, r[i].ip, d)
 		end
 		r = violation_record(id)
 		if r then
-			minetest.chat_send_player(caller, "\nViolation records: " .. #r .. "\n")
+			bld[#bld+1] = minetest.colorize("#0FF", "\nViolation records: ") .. #r
 			for i,v in ipairs(r) do
-				minetest.chat_send_player(caller,
-				("[%s] ID: %s IP: %s Created: %s Last login: %s\n"):format(
-				i, v.id, v.ip, hrdf(v.created), hrdf(v.last_login)))
+				bld[#bld+1] = ("[%s] ID: %s IP: %s Created: %s Last login: %s"):format(
+				i, v.id, v.ip, hrdf(v.created), hrdf(v.last_login))
 			end
 		else
-			minetest.chat_send_player(caller, "\nNo violation records for " .. target .. "\n")
+			bld[#bld+1] = minetest.colorize("#0FF", "\nNo violation records for ") .. target
 		end
 	end
 
 	r = player_ban_expired(id) or {}
-	minetest.chat_send_player(caller, "\nBan History:")
+	bld[#bld+1] = minetest.colorize("#0FF", "\nBan records:")
 	if #r > 0 then
 
-		minetest.chat_send_player(caller, "\nrecords: "..#r.."\n")
+		bld[#bld+1] = minetest.colorize("#0FF", "\nExpired records: ")..#r
 
 		for i, e in ipairs(r) do
 			local d1 = hrdf(e.created)
@@ -553,39 +553,31 @@ local function display_record(caller, target)
 			if type(e.expires) == "number" and e.expires > 0 then
 				expires = hrdf(e.expires)
 			end
-			if type(e.u_date) == "number" and e.u_date > 0 then
-				local d2 = hrdf(e.u_date)
-				minetest.chat_send_player(caller,
-					("[%s] Name: %s Created: %s Banned by: %s Reason: %s Expires: %s\n"
-				):format(i, e.name, d1, e.source, e.reason, expires))
-				minetest.chat_send_player(caller,
-					("[%s] Unbanned by: %s Reason: %s Time: %s"
-				):format(i, e.u_source, e.u_reason, d2))
-			else
-				minetest.chat_send_player(caller,
-					("[%s] Name: %s Created: %s Banned by: %s Reason: %s Expires: %s\n"
-				):format(i, e.name, d1, e.source, e.reason, expires))
-			end
+			local d2 = hrdf(e.u_date)
+			bld[#bld+1] = (minetest.colorize("#FFC000", "[%s]")..
+			" Name: %s Created: %s Banned by: %s Reason: %s Expires: %s "
+		):format(i, e.name, d1, e.source, e.reason, expires) ..
+			("Unbanned by: %s Reason: %s Time: %s"):format(e.u_source, e.u_reason, d2)
 		end
 
 	else
-		minetest.chat_send_player(caller, "\nNo ban records!")
+		bld[#bld+1] = "\nNo expired ban records!"
 	end
 
 	r = bans[id]
 	local ban = tostring(r ~= nil)
-	minetest.chat_send_player(caller, "Current Status:")
+	bld[#bld+1] = minetest.colorize("#0FF", "\nCurrent Ban Status:")
 	if ban == 'true' then
 		local expires = "never"
 		local d = hrdf(r.created)
 		if type(r.expires) == "number" and r.expires > 0 then
 			expires = hrdf(r.expires)
 		end
-		minetest.chat_send_player(caller,
-			("\nName: %s Created: %s Banned by: %s Reason: %s Expires: %s"
-		):format(r.name, d, r.source, r.reason, expires))
+		bld[#bld+1] = ("Name: %s Created: %s Banned by: %s Reason: %s Expires: %s"
+		):format(r.name, d, r.source, r.reason, expires)
 	end
-	minetest.chat_send_player(caller, "\nBanned: "..ban)
+	bld[#bld+1] = minetest.colorize("#0FF", "\nBanned: ")..ban
+	minetest.chat_send_player(caller, table.concat(bld, "\n"))
 end
 
 -- Fetch names like 'name'
@@ -1961,7 +1953,7 @@ minetest.override_chatcommand("kick", {
 -- Register whois command
 minetest.register_chatcommand("/whois", {
 	params = "<player> [v]",
-	description = "Returns info on a player, use v for full record.",
+	description = "Returns player information, use v for full record.",
 	privs = {ban_admin = true},
 	func = function(name, param)
 		local list = {}
@@ -1978,7 +1970,7 @@ minetest.register_chatcommand("/whois", {
 		end
 		local names = name_records(id)
 		local ips = address_records(id)
-		local msg = "\nNames: "
+		local msg = minetest.colorize("#FFC000", "\nNames: ")
 		local n, a = {}, {}
 		for i, v in ipairs(names) do
 			n[#n+1] = v.name
@@ -1988,13 +1980,13 @@ minetest.register_chatcommand("/whois", {
 		end
 		msg = msg .. table.concat(n, ", ")
 		if #list > 1 and list[2] == "v" then
-			msg = msg .. "\nIP Addresses:\n "
+			msg = msg .. minetest.colorize("#FFC000", "\nIP Addresses: ")
 			msg = msg .. table.concat(a, ", ")
 		else
-			msg = msg .. "\nLast IP Address: "
+			msg = msg .. minetest.colorize("#FFC000", "\nLast IP Address: ")
 			msg = msg .. a[1]
 		end
-		return false, "Player info for " .. pname .. ": " .. msg
+		return false, minetest.colorize("#FFC000", "Info for: ") .. pname .. msg
 	end,
 })
 
