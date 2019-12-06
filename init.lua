@@ -2093,12 +2093,12 @@ end)
 
 -- Register callback for prejoin event
 minetest.register_on_prejoinplayer(function(name, ip)
-	
+
 	-- known player?
 	local id = get_id(name) or get_id(ip)
 
 	if not id then return end -- unknown player
-	
+
 	t_id[name] = {
 		id = id,
 		ip = ip,
@@ -2110,9 +2110,9 @@ minetest.register_on_prejoinplayer(function(name, ip)
 		minetest.log("action", "[sban] " .. name .. " whitelist login")
 		return
 	end
-		
+
 	if not dev and owner_id and owner_id == id then return end -- owner bypass
-	
+
 	local data = bans[id]
 
 	if not data then
