@@ -236,7 +236,7 @@ Restricts how many accounts an id can have.
 
 Please note this setting is optional and the default behaviour is unrestricted.
 
-### sban.ip_limit
+#### sban.ip_limit
 
 Restricts how many ip addresses an id can have.
 
