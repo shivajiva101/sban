@@ -228,13 +228,21 @@ Please note that if you delete or adjust the setting, after restarting the serve
 created while the setting was active will not change and will retain their original
 expiry date.
 
-#### sban.accounts_per_ip
+#### sban.accounts_per_id
 
-Restricts accounts a player can make from an ip address.
+Restricts how many accounts an id can have.
 
-	sban.accounts_per_ip = 5
+	sban.accounts_per_id = 5
 
-Please note this is optional and without the setting the player accounts are unrestricted.
+Please note this setting is optional and the default behaviour is unrestricted.
+
+### sban.ip_limit
+
+Restricts how many ip addresses an id can have.
+
+	sban.ip_limit = 10
+	
+Please note this setting is optional and the default behaviour is unrestricted.
 
 #### sban.import_enabled
 
