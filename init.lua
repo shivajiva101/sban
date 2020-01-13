@@ -935,7 +935,7 @@ local function update_ban_record(id, source, reason, name)
 		INSERT INTO expired VALUES (%i,'%s','%s',%i,'%s',%i,'%s','%s',%i,'%s');
 		DELETE FROM active WHERE id = %i;
 	]]):format(row.id, row.name, row.source, row.created, escape_string(row.reason),
-	row.expires, source, reason, ts, row.last_pos, row.id)
+	row.expires, source, reason, ts, row.pos, row.id)
 	db_exec(stmt)
 	bans[id] = nil -- update cache
 	-- log event
