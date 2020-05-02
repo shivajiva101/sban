@@ -576,7 +576,7 @@ local function display_record(caller, target)
 		bld[#bld+1] = ("Name: %s Created: %s Banned by: %s Reason: %s Expires: %s"
 		):format(r.name, d, r.source, r.reason, expires)
 	else
-		bld[#bld+1] = "/nno active ban record!"
+		bld[#bld+1] = "\nno active ban record!"
 	end
 	bld[#bld+1] = minetest.colorize("#0FF", "\nBanned: ")..ban
 	minetest.chat_send_player(caller, table.concat(bld, "\n"))
