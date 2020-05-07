@@ -1667,7 +1667,7 @@ minetest.register_on_player_receive_fields(function(player, formname, fields)
 			elseif fields.tban then
 				if selected == owner then
 					fs.info = "you do not have permission to do that!"
-				display_record(name, playername)else
+				else
 					local  t = parse_time(ESC(fields.duration)) + os.time()
 					create_ban_record(selected, name, ESC(fields.reason), t)
 				end
@@ -1781,7 +1781,6 @@ minetest.register_chatcommand("ban_record", {
 		if not source.server and chk then
 			return false, "Insufficient privileges to access that information"
 		end
-		
 		return true, display_record(name, playername)
 	end
 })
