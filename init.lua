@@ -1447,7 +1447,7 @@ if irc then -- luacheck: ignore
         message = message:gsub("[\r\n%z]", " \\n ")
         local helper = string.split(message, "\\n")
         for i,v in ipairs(helper) do
-            irc.say(irc.last_from, minetest.strip_colors(v))
+            irc.say(irc.last_from, minetest.strip_colors(v)) -- luacheck: ignore
         end
     end
 end
