@@ -490,8 +490,8 @@ local function display_record(caller, target)
 	for i,v in ipairs(r) do
 		table.insert(names, v.name)
 	end
-	bld[#bld+1] = minetest.colorize("#00FFFF", "\n[sban] records for: ") .. target
-	bld[#bld+1] = minetest.colorize("#00FFFF", "\nNames: ") .. table.concat(names, ", ")
+	bld[#bld+1] = minetest.colorize("#00FFFF", "[sban] records for: ") .. target
+	bld[#bld+1] = minetest.colorize("#00FFFF", "Names: ") .. table.concat(names, ", ")
 
 	local privs = minetest.get_player_privs(caller)
 
@@ -1372,7 +1372,7 @@ local current_version = get_setting("db_version")
 if not current_version then -- first run
 	init_setting('db_version', db_version)
 	init_setting('mod_version', mod_version)
-elseif current_version == "0.1" then
+elseif not current_version == db_version then
 	error("You must update sban database to "..db_version..
 	"\nUse sqlite3 to import /tools/sban_update.sql")
 end
@@ -1436,6 +1436,20 @@ local function clean_join_cache(name)
 			t_id[k] = nil
 		end
 	end
+end
+
+-- fix irc mod with an override
+if irc then
+    irc.reply = function(message)
+        if not irc.last_from then
+            return
+        end
+        message = message:gsub("[\r\n%z]", " \\n ")
+        local helper = string.split(message, "\\n")
+        for i,v in ipairs(helper) do
+            irc.say(irc.last_from, minetest.strip_colors(v))
+        end
+    end
 end
 
 --[[
