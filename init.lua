@@ -1439,9 +1439,9 @@ local function clean_join_cache(name)
 end
 
 -- fix irc mod with an override
-if irc then
-    irc.reply = function(message)
-        if not irc.last_from then
+if irc then -- luacheck: ignore
+    irc.reply = function(message) -- luacheck: ignore
+        if not irc.last_from then -- luacheck: ignore
             return
         end
         message = message:gsub("[\r\n%z]", " \\n ")
