@@ -2,12 +2,6 @@
 
 [![Build Status](https://travis-ci.org/shivajiva101/sban.svg?branch=master)](https://travis-ci.org/shivajiva101/sban)
 
-Existing users please note that to use this version you need to apply sban/tools/sban_update.sql so backup your database to somewhere safe and copy sban/tools/sban_update.sql to the world you want to appy the update to and in a terminal navigate to the world folder and use the commands:
-
-	sqlite3 sban.sqlite
-	.read sban_update.sql
-	.exit
-
 This mod is based on the concepts introduced by xban2, and expands on them
 by using an sql database instead of a serialised table file. This approach to
 ban management:
@@ -22,9 +16,15 @@ ban management:
 favourite database management gui.
 * Can preserve existing bans by importing records from Minetest or xban2.
 
-Currently the add and update transactions are coded without
-locks so it's not recommended to write to the database whilst Minetest is using it.
-Reading the database shouldn't be an issue.
+Transactions are coded without locks so it's not recommended to write to
+the database whilst Minetest is using it. Reading the database shouldn't be an issue.
+
+<b>Existing users please note:</b> sban will not allow MT to run if your db version doesn't match this version, you need to apply <b><i>sban/tools/sban_update.sql</b></i> copy the file into the world folder you applying it to, then in a terminal navigate to the world folder and use the commands:
+
+	sqlite3 sban.sqlite
+	.read sban_update.sql
+	.exit
+
 
 #### INSTALLATION
 
@@ -33,7 +33,7 @@ sban requires lsqlite3 (https://github.com/LuaDist/lsqlite3).
 If you have luarocks (https://luarocks.org/) installed on the target server,
 you can easily install lsqlite3 in a terminal:
 
-    luarocks install lsqlite3
+    sudo luarocks install lsqlite3
 
 If the target server runs mods in secure mode[recommended], you must add sban
 to the list of trusted mods in minetest.conf:
@@ -48,10 +48,10 @@ of some commands.
 
 #### bang
 
-Launches the GUI. Comprehensive management of bans via a user interface for convenience.
-On launch the interface shows a list containing the last 10 players to join. Use search
-to find a player if they are not in the list. Multiple records are shown if available, by
-using the arrows.
+Launches a GUI. Comprehensive management of bans via a user interface for in-game convenience.
+On launch the interface shows a hotlist containing the last 10 players to join. Use search
+to find a player if they are not currently in the list. Multiple records are shown if available,
+accessible via the arrows.
 
 ``` Usage: /bang ```
 
@@ -102,10 +102,10 @@ Example: /ban_record Steve
 This prints the player record and ban record for a player. The records are
 printed to the chat console with one entry per line.
 
-The player record includes names and, if the user has the ban_admin privilege,
+The player record includes names and, if sufficient privileges,
 IP addresses used by the player. The number of records displayed is limited
 to 10 by default to prevent chat console spam, and can be adjusted through
-the sban.display_max setting in minetest.conf.
+the setting sban.display_max in minetest.conf.
 
 The ban record includes a list of all ban related actions performed on the player
 under any known name or IP address. This includes the time a ban came into effect,
@@ -135,7 +135,7 @@ These commands are for administering the server and require the server privilege
 You can import a server's previous ban history from xban2's xban.db file or from
 Minetest's ipban.txt file.
 
-This is an intensive process that will cause server lag, so it's recommended
+This is an intensive process that will cause lag, so it's recommended
 you perform this on a local instance and copy the database to the server
 before starting with the sban mod installed.
 
@@ -189,7 +189,7 @@ Do this before enabling xban2 mod otherwise it will be overwritten by the curren
 
 Example: //whois sadie
 
-Returns all known accounts and ip addresses asociated with a player name.
+Returns all known accounts and ip addresses associated with a player name.
 
 #### CONFIG
 
@@ -224,7 +224,7 @@ In this example all permanent player bans created after the setting has been add
 to minetest.conf, and after a server restart, will expire 90 days after the ban was
 set. If required, longer ban durations can still be set with the tempban command.
 
-Please note that if you delete or adjust the setting, after restarting the server, bans
+<b>Please note:</b> if you delete or adjust the setting, after restarting the server, bans
 created while the setting was active will not change and will retain their original
 expiry date.
 
