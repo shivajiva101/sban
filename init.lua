@@ -855,6 +855,7 @@ local function create_ban_record(name, source, reason, expires)
 
 	-- kick all player names associated with the id
 	local r = name_records(id)
+	if #r < 1 then r[1] = {name = name} end -- sanity check for timeout
 	for i, v in ipairs(r) do
 		player = minetest.get_player_by_name(v.name)
 		if player then
