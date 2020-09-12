@@ -857,7 +857,7 @@ local function create_ban_record(name, source, reason, expires)
 	local r = name_records(id)
 	if #r < 1 then -- sanity check for timeout
 		r[1] = {name = name}
-		minetest.log('action', '[sban] named_records search failed!')
+		minetest.log('warning', db:errmsg())
 	end
 	for i, v in ipairs(r) do
 		player = minetest.get_player_by_name(v.name)
@@ -1194,7 +1194,7 @@ if importer then -- always true for first run
 		local dbi, err = load_xban(filename)
 		local id = ID
 		if err then
-			minetest.log("info", err)
+			minetest.log("warning", err)
 			return
 		end
 		-- reverse the contents
