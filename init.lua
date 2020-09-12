@@ -855,6 +855,10 @@ local function create_ban_record(name, source, reason, expires)
 
 	-- kick all player names associated with the id
 	local r = name_records(id)
+	if #r < 1 then -- sanity check for timeout
+		r[1] = {name = name}
+		minetest.log('action', '[sban] named_records search failed!')
+	end
 	for i, v in ipairs(r) do
 		player = minetest.get_player_by_name(v.name)
 		if player then
