@@ -59,6 +59,10 @@ sban = {}
 ### Settings ###
 ################
 ]]
+
+-- db
+db:busy_timeout(50)
+
 -- minetest.conf
 if minetest.settings then
 	expiry = minetest.settings:get("sban.ban_max")
