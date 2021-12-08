@@ -972,7 +972,7 @@ end
 ##################################
 ]]
 
--- Remove ban recors
+-- Remove ban record
 -- @param id integer
 -- @return nil
 local function del_ban_record(id)
@@ -1430,7 +1430,7 @@ local function process_expired_bans()
 	end
 	if #tq > 0 then
 		-- finalise & execute
-		tq[#tq+1] = "VACUM;"
+		tq[#tq+1] = "VACUUM;"
 		db_exec(table.concat(tq, "\n"))
 	end
 end
