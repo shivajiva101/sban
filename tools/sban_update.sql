@@ -166,6 +166,9 @@ WHERE  typeof(bans.id) = 'text';
 DELETE FROM bans WHERE typeof(bans.id) = 'text';
 INSERT INTO bans SELECT * FROM fix_tmp;
 
+-- fix null expires entries
+UPDATE bans SET expires = 0 WHERE expires = '';
+
 -- transfer existing data to new tables
 ----------------------------------------------
 
@@ -193,9 +196,6 @@ INSERT INTO active_tmp SELECT
 	expires,
 	last_pos
 FROM bans WHERE active = 'true';
-
--- initialise expires
-UPDATE active SET expires = 0 WHERE expires = '';
 
 -- initialise versions
 INSERT INTO config VALUES('db_version', '0.2.1');
