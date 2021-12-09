@@ -941,6 +941,7 @@ local function update_ban_record(id, source, reason, name)
 	reason = escape_string(reason)
 	local ts = os.time()
 	local row = bans[id] -- use cached data
+	row.expires = row.expires or 0 -- catch legacy
 	local stmt = ([[
 		INSERT INTO expired VALUES (%i,'%s','%s',%i,'%s',%i,'%s','%s',%i,'%s');
 		DELETE FROM active WHERE id = %i;
