@@ -1477,8 +1477,10 @@ local function create_info(entry)
 	end
 	local str = "Banned by: "..entry.source.."\n"
 		.."When: "..hrdf(entry.created).."\n"
-	if entry.expires ~= 0 then
+	if type(entry.expires) == "number" and entry.expires > 0 then
 		str = str.."Expires: "..hrdf(entry.expires).."\n"
+	else
+		str = str.."Expires: never, permanent ban!".."\n"
 	end
 	str = str .."Reason: "
 	-- Word wrap
