@@ -1437,6 +1437,25 @@ local function process_expired_bans()
 end
 process_expired_bans() -- trigger on mod load
 
+local function data_integrity_check()
+	local r, q = {}
+	minetest.log("action", "[sban] Data integrity check...")
+	q = [[SELECT
+		active.id,
+		active.name,
+		active.source,
+		active.created,
+		active.reason
+	FROM active
+		LEFT JOIN name ON name.id = active.id
+	WHERE name.id IS NULL;]]
+	for row in db:nrows(q) do
+		minetest.log("action", ([[[sban] id: %i %s %s %s %s is orphaned!]]
+		):format(row.id, row.name, row.source, hrdf(row.created), row.reason))
+	end
+end
+data_integrity_check() -- check for orphaned ban records!
+
 local function clean_join_cache(name)
 	local ts = os.time()
 	local TTL = 10 -- ttl in seconds
