@@ -1,6 +1,6 @@
 # sban
 
-[![Build Status](https://travis-ci.org/shivajiva101/sban.svg?branch=master)](https://travis-ci.org/shivajiva101/sban)
+[![Build status](https://github.com/shivajiva101/sban/workflows/Check%20&%20Release/badge.svg)](https://github.com/shivajiva101/sban/actions)
 
 This mod is based on the concepts introduced by xban2, and expands on them
 by using an sql database instead of a serialised table file. This approach to
