@@ -1438,7 +1438,7 @@ end
 process_expired_bans() -- trigger on mod load
 
 local function data_integrity_check()
-	local r, q = {}
+	local q
 	minetest.log("action", "[sban] Data integrity check...")
 	q = [[SELECT
 		active.id,
