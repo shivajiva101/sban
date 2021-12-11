@@ -1466,8 +1466,8 @@ local function clean_join_cache(name)
 	end
 end
 
--- fix irc mod with an override
-if irc then -- luacheck: ignore
+-- fix irc mod with an override if present
+if minetest.get_modpath('irc') ~= nil then -- luacheck: ignore
     irc.reply = function(message) -- luacheck: ignore
         if not irc.last_from then -- luacheck: ignore
             return
