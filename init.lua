@@ -1669,6 +1669,7 @@ minetest.register_on_player_receive_fields(function(player, formname, fields)
 		end
 		fs.info = str
 		fs.index = -1
+		fs.multi = false
 		minetest.show_formspec(name, FORMNAME, getformspec(name))
 
 	elseif fields.plist then
