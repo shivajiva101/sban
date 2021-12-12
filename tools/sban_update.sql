@@ -214,13 +214,13 @@ INSERT INTO name SELECT * FROM name_tmp;
 
 -- process missed expired active entries
 INSERT INTO expired_tmp (id,name,source,created,reason,expires,last_pos)
-	SELECT * FROM active WHERE expires < strftime('%s','now');
+	SELECT * FROM active WHERE expires != 0 AND expires < strftime('%s','now')
 UPDATE expired_tmp SET
 	u_source = 'sban_update',
 	u_reason = 'ban expired',
 	u_date = strftime('%s','now');
 INSERT INTO expired SELECT * FROM expired_tmp;
-DELETE FROM active WHERE expires < strftime('%s','now');
+DELETE FROM active WHERE expires != 0 AND expires < strftime('%s','now');
 
 -- clean up temporary tables
 -----------------------------------------
