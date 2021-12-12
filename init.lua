@@ -1391,7 +1391,6 @@ WL = get_whitelist()
 bans = get_active_bans()
 ID = last_id() or 0
 owner_id = get_id(owner)
-t_id = {}
 
 -- Add an entry to and manage size of hotlist
 -- @param name string
