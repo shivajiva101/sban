@@ -135,8 +135,8 @@ end
 -- @return error String or Boolean true
 local function db_exec(stmt)
 	if db:exec(stmt) ~= _sql.OK then
-		minetest.log("error", "Sqlite ERROR:  "..db:errmsg())
-		return db:errmsg()
+		minetest.log("error", "[sban] Sqlite ERROR:  "..db:errmsg())
+		return false, db:errmsg()
 	else
 		return true
 	end
