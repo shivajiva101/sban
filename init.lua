@@ -44,7 +44,7 @@ local db_version = '0.2.1'
 local db = _sql.open(DB) -- connection
 local mod_version = '0.2.0'
 local expiry, owner, owner_id, def_duration, display_max, names_per_id
-local importer, ID, HL_Max, max_cache_records, ttl, cap, t_id, ip_limit
+local importer, ID, HL_Max, max_cache_records, ttl, cap, ip_limit
 local formstate = {}
 local t_units = {
 	s = 1, S=1, m = 60, h = 3600, H = 3600,
@@ -1456,16 +1456,6 @@ local function data_integrity_check()
 end
 data_integrity_check() -- check for orphaned ban records!
 
-local function clean_join_cache(name)
-	local ts = os.time()
-	local TTL = 10 -- ttl in seconds
-	for k,v in pairs(t_id) do
-		if (v.ts + TTL) < ts or k == name then
-			t_id[k] = nil
-		end
-	end
-end
-
 -- fix irc mod with an override if present
 if minetest.get_modpath('irc') ~= nil then -- luacheck: ignore
     irc.reply = function(message) -- luacheck: ignore
@@ -2145,12 +2135,6 @@ minetest.register_on_prejoinplayer(function(name, ip)
 
 	if not id then return end -- unknown player
 
-	t_id[name] = {
-		id = id,
-		ip = ip,
-		ts = os.time()
-	}
-
 	-- whitelist bypass
 	if WL[name] or WL[ip] then
 		minetest.log("action", "[sban] " .. name .. " whitelist login")
@@ -2218,19 +2202,15 @@ end)
 minetest.register_on_joinplayer(function(player)
 
 	local name = player:get_player_name()
-	local buf = t_id[name]
 	local id, ip
 
-	if not buf then
-		id = get_id(name)
-		ip = minetest.get_player_ip(name)
-	else
-		id = buf.id
-		ip = buf.ip
-		clean_join_cache(name)
-	end
+	id = get_id(name)
+	ip = minetest.get_player_ip(name)
 
-	if not ip then return end
+	if not ip then
+		minetest.log("error", "Minetest failed to fetch ip address on player join")
+		return
+	end
 
 	manage_hotlist(name)
 	trim_cache()
