@@ -6,7 +6,7 @@ This mod is based on the concepts introduced by xban2, and expands on them
 by using an sql database instead of a serialised table file. This approach to
 ban management:
 
-* Offers API access to useful functions
+* Offers API access to core functions that can be disabled if reqd
 * Improves the robustness of the data.
 * Grants an enhanced view of player accounts and ban records.
 * Provides tiered access to player record information.
@@ -47,7 +47,7 @@ The mod provides the following chat console commands. These commands require
 the ban privilege. The ban_admin and server privileges extend the functionality
 of some commands.
 
-#### bang
+<b>bang</b>
 
 Launches a GUI. Comprehensive management of bans via a user interface for in-game convenience.
 On launch the interface shows a hotlist containing the last 10 players to join. Use search
@@ -56,7 +56,7 @@ accessible via the arrows.
 
 ``` Usage: /bang ```
 
-#### ban
+<b>ban</b>
 
 Bans a player permanently.
 
@@ -67,7 +67,7 @@ Example: /ban Steve Some reason.
 The server privilege enables the pre-emptive banning of player names or
 IP addresses for which the server has no current record.
 
-#### tempban
+<b>tempban</b>
 
 Bans a player temporarily.
 
@@ -82,7 +82,7 @@ assumed to mean seconds. For example, 42 means 42 seconds, 1337m means 1337 minu
 and so on. You can chain more than one such group and they will add up.
 For example, 1Y3M3D7h will ban for 1 year, 3 months, 3 days and 7 hours.
 
-#### unban
+<b>unban</b>
 
 Unbans a player.
 
@@ -92,7 +92,7 @@ Example: /unban Steve Some reason.
 
 Note that this command requires a reason.
 
-#### ban_record
+<b>ban_record</b>
 
 Displays player record and ban record.
 
@@ -115,7 +115,7 @@ the expiration time (if applicable), the reason, and the source of the ban.
 Note that the records of players with the server privilege can only be viewed
 by other players with the server privilege.
 
-#### ban_wl
+<b>ban_wl</b>
 
 Manages the whitelist.
 
@@ -140,7 +140,7 @@ This is an intensive process that will cause lag, so it's recommended
 you perform this on a local instance and copy the database to the server
 before starting with the sban mod installed.
 
-#### ban_dbi
+<b>ban_dbi</b>
 
 Imports bans from xban.db or ipban.txt files into an existing
 sban.sqlite file.
@@ -158,7 +158,7 @@ command on each file. For example:
 Each record is checked against the database by player name to prevent duplicate
 entries.
 
-#### ban_dbe
+<b>ban_dbe</b>
 
 Extracts all valid player records from an xban.db file and saves them in xban.sql.
 
@@ -175,7 +175,7 @@ from the sqlite prompt using:
 
 The time of the import operation is dependant on the size of the .sql file.
 
-#### ban_dbx
+<b>ban_dbx</b>
 
 Dumps the database back to xban2 file format. Use it before you uninstall this mod
 if you intend using xban2 and wish to retain the data.
@@ -184,7 +184,7 @@ if you intend using xban2 and wish to retain the data.
 
 Do this before enabling xban2 mod otherwise it will be overwritten by the currently loaded data.
 
-#### whois
+<b>whois</b>
 
 ```Usage: //whois <name>```
 
@@ -192,29 +192,31 @@ Example: //whois sadie
 
 Returns all known accounts and ip addresses associated with a player name.
 
-#### CONFIG
+#### CONFIG SETTINGS
 
 You can add these optional settings to minetest.conf to adjust the sban mod's
-behaviour.
+behaviour. Deleting them removes the modification and sban will revert back to
+the default behaviour. Minetest config file can only be changed when the server
+isn't running!
 
-#### sban.api
+<b>sban.api</b>
 
-Controls loading of the API functions. Default is false.
+Controls loading of the API functions. <b>Default: true</b>
 
-	sban.api = true
+	sban.api = false
 
-This would load the API functions and allow other mods access via the global sban table.
+This would disable the API functions and prevent other mods access via the global sban table.
 
-#### sban.display_max
+<b>sban.display_max</b>
 
 Changes the maximum number of player records displayed when using the /ban_record
 command.
 
 	sban.display_max = 12
 
-This would increase the number of records shown from the default 10 records to 12.
+This would increase the number of records shown from the <b>default: 10</b> records to 12.
 
-#### sban.ban_max
+<b>sban.ban_max</b>
 
 Allows server owners to set an expiry date for bans. It uses the same format for
 durations as the /tempban command.
@@ -225,11 +227,10 @@ In this example all permanent player bans created after the setting has been add
 to minetest.conf, and after a server restart, will expire 90 days after the ban was
 set. If required, longer ban durations can still be set with the tempban command.
 
-<b>Please note:</b> if you delete or adjust the setting, after restarting the server, bans
-created while the setting was active will not change and will retain their original
-expiry date.
+<b>Please note:</b> existing ban expiry dates are not affected by changing this setting,
+ including permanent bans but they will be applied to any subsequent new bans.
 
-#### sban.accounts_per_id
+<b>sban.accounts_per_id</b>
 
 Restricts how many accounts an id can have.
 
@@ -237,7 +238,7 @@ Restricts how many accounts an id can have.
 
 Please note this setting is optional and the default behaviour is unrestricted.
 
-#### sban.ip_limit
+<b>sban.ip_limit</b>
 
 Restricts how many ip addresses an id can have.
 
@@ -245,16 +246,16 @@ Restricts how many ip addresses an id can have.
 	
 Please note this setting is optional and the default behaviour is unrestricted.
 
-#### sban.import_enabled
+<b>sban.import_enabled</b>
 
 Disables the import/export sections of code.
 
 	sban.import_enabled = false
 
-The default is true, this setting allows you to save memory by disabling the code and commands associated with
-importing & exporting data and should only be set to false once you have imported any ban sources.
+The default is true, this setting allows you to disable the code and commands associated with
+importing & exporting data and should only be set to false once you have imported your ban sources.
 
-#### sban.cache.max
+<b>sban.cache.max</b>
 
 Maximum cached name records.
 
@@ -262,7 +263,7 @@ Maximum cached name records.
 
 If you don't add this setting sban will use the value above as the default.
 
-#### sban.cache.ttl
+<b>sban.cache.ttl</b>
 
 Time in seconds to deduct from the last player to login as the cutoff point for pre caching names.
 
