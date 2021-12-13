@@ -19,12 +19,13 @@ favourite database management gui.
 Transactions are coded without locks so it's not recommended to write to
 the database whilst Minetest is using it. Reading the database shouldn't be an issue.
 
-<b>Existing users please note:</b> sban will not allow MT to run if your db version doesn't match this version, you need to apply <b><i>sban/tools/sban_update.sql</b></i> copy the file into the world folder you applying it to, then in a terminal navigate to the world folder and use the commands:
+<b>Existing users please note:</b> sban will not allow minetest to run if your db version doesn't match the current version required, if that happens and <b>only</b> if, you need to apply <b><i>sban/tools/sban_update.sql</b></i> to the database by copying the file into the world folder, then you can use sqlite3 in a terminal after navigating to the world folder using the commands:
 
 	sqlite3 sban.sqlite
 	.read sban_update.sql
 	.exit
 
+It's a good idea to make a backup prior to running the update just in case and the update should <b>not</b> be applied more than once!
 
 #### INSTALLATION
 
