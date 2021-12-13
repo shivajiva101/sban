@@ -44,7 +44,7 @@ local db_version = '0.2.1'
 local db = _sql.open(DB) -- connection
 local mod_version = '0.2.0'
 local expiry, owner, owner_id, def_duration, display_max, names_per_id
-local importer, ID, HL_Max, max_cache_records, ttl, cap, ip_limit
+local importer, ID, HL_Max, max_cache_records, ttl, cap, ip_limit, api
 local formstate = {}
 local t_units = {
 	s = 1, S=1, m = 60, h = 3600, H = 3600,
@@ -71,10 +71,11 @@ if minetest.settings then
 	display_max = tonumber(minetest.settings:get("sban.display_max")) or 10
 	names_per_id = tonumber(minetest.settings:get("sban.accounts_per_id"))
 	ip_limit = tonumber(minetest.settings:get("sban.ip_limit"))
-	importer = minetest.settings:get("sban.import_enabled") or true
+	importer = minetest.settings:get_bool("sban.import_enabled", true)
 	HL_Max = tonumber(minetest.settings:get("sban.hotlist_max")) or 15
 	max_cache_records = tonumber(minetest.settings:get("sban.cache.max")) or 1000
 	ttl = tonumber(minetest.settings:get("sban.cache.ttl")) or 86400
+	api = minetest.settings:get_bool("sban.api", true)
 else
 	-- old api method
 	expiry = minetest.setting_get("sban.ban_max")
@@ -87,6 +88,7 @@ else
 	HL_Max = tonumber(minetest.setting_get("sban.hotlist_max")) or 15
 	max_cache_records = tonumber(minetest.setting_get("sban.cache_max")) or 1000
 	ttl = tonumber(minetest.setting_get("sban.cache_ttl")) or 86400
+	api = minetest.setting_getbool("sban.api") or true
 end
 
 --[[
@@ -2031,88 +2033,90 @@ minetest.register_chatcommand("/whois", {
 #######################
 ]]
 
--- Ban function
--- @param name string
--- @param source string
--- @param reason string
--- @param expires alphanumerical duration string or integer
--- @return bool
--- @return msg string
-sban.ban = function(name, source, reason, expires)
-	-- check params are valid
-	assert(type(name) == 'string')
-	assert(type(source) == 'string')
-	assert(type(reason) == 'string')
-	if expires and type(expires) == 'string' then
-		expires = parse_time(expires)
-	elseif expires and type(expires) == "integer" then
-		local ts = os.time()
-		if expires < ts then
-			expires = ts + expires
+if api then
+	-- Ban function
+	-- @param name string
+	-- @param source string
+	-- @param reason string
+	-- @param expires alphanumerical duration string or integer
+	-- @return bool
+	-- @return msg string
+	sban.ban = function(name, source, reason, expires)
+		-- check params are valid
+		assert(type(name) == 'string')
+		assert(type(source) == 'string')
+		assert(type(reason) == 'string')
+		if expires and type(expires) == 'string' then
+			expires = parse_time(expires)
+		elseif expires and type(expires) == "integer" then
+			local ts = os.time()
+			if expires < ts then
+				expires = ts + expires
+			end
+		end
+		if name == owner then
+			return false, 'insufficient privileges!'
+		end
+		local id = get_id(name)
+		if not id then
+			return false, ("No records exist for %s"):format(name)
+		elseif bans[id] then
+			-- only one active ban per id is reqd!
+			return false, ("An active ban already exist for %s"):format(name)
+		end
+		-- ban player
+		create_ban_record(name, source, reason, expires)
+		return true, ("Banned %s."):format(name)
+	end
+
+	-- Unban function
+	-- @param name string
+	-- @param source name string
+	-- @param reason string
+	-- @return bool and msg string or nil
+	sban.unban = function(name, source, reason)
+		-- check params are valid
+		assert(type(name) == 'string')
+		assert(type(source) == 'string')
+		assert(type(reason) == 'string')
+		-- look for records by id
+		local id = get_id(name)
+		if id then
+			if not bans[id] then
+				return false, ("No active ban record for "..name)
+			end
+			update_ban_record(id, name, reason, name)
+			return true, ("Unbanned %s."):format(name)
+		else
+			return false, ("No records exist for %s"):format(name)
 		end
 	end
-	if name == owner then
-		return false, 'insufficient privileges!'
-	end
-	local id = get_id(name)
-	if not id then
-		return false, ("No records exist for %s"):format(name)
-	elseif bans[id] then
-		-- only one active ban per id is reqd!
-		return false, ("An active ban already exist for %s"):format(name)
-	end
-	-- ban player
-	create_ban_record(name, source, reason, expires)
-	return true, ("Banned %s."):format(name)
-end
 
--- Unban function
--- @param name string
--- @param source name string
--- @param reason string
--- @return bool and msg string or nil
-sban.unban = function(name, source, reason)
-	-- check params are valid
-	assert(type(name) == 'string')
-	assert(type(source) == 'string')
-	assert(type(reason) == 'string')
-	-- look for records by id
-	local id = get_id(name)
-	if id then
-		if not bans[id] then
-			return false, ("No active ban record for "..name)
+	-- Fetch ban status for a player name or ip address
+	-- @param name_or_ip string
+	-- @return bool
+	sban.ban_status = function(name_or_ip)
+		assert(type(name_or_ip) == 'string')
+		local id = get_id(name_or_ip)
+		return bans[id] ~= nil
+	end
+
+	-- Fetch ban status for a player name or ip address
+	-- @param name_or_ip string
+	-- @return keypair table record
+	sban.ban_record = function(name_or_ip)
+		assert(type(name_or_ip) == 'string')
+		local id = get_id(name_or_ip)
+		if id then
+			return bans[id]
 		end
-		update_ban_record(id, name, reason, name)
-		return true, ("Unbanned %s."):format(name)
-	else
-		return false, ("No records exist for %s"):format(name)
 	end
-end
 
--- Fetch ban status for a player name or ip address
--- @param name_or_ip string
--- @return bool
-sban.ban_status = function(name_or_ip)
-	assert(type(name_or_ip) == 'string')
-	local id = get_id(name_or_ip)
-	return bans[id] ~= nil
-end
-
--- Fetch ban status for a player name or ip address
--- @param name_or_ip string
--- @return keypair table record
-sban.ban_record = function(name_or_ip)
-	assert(type(name_or_ip) == 'string')
-	local id = get_id(name_or_ip)
-	if id then
-		return bans[id]
+	-- Fetch active bans
+	-- @return keypair table of active bans
+	sban.list_active = function()
+		return bans
 	end
-end
-
--- Fetch active bans
--- @return keypair table of active bans
-sban.list_active = function()
-	return bans
 end
 
 --[[
