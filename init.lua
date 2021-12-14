@@ -1454,6 +1454,11 @@ local function data_integrity_check()
 		minetest.log("action", ([[[sban] id: %i %s %s %s %s is orphaned!]]
 		):format(row.id, row.name, row.source, hrdf(row.created), row.reason))
 	end
+	q = [[BEGIN TRANSACTION;
+	UPDATE active SET expires = 0 WHERE expires = '';
+	UPDATE expired SET expires = 0 WHERE expires = '';
+	COMMIT;]]
+	db_exec(q)
 end
 data_integrity_check() -- check for orphaned ban records!
 
