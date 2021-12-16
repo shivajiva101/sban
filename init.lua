@@ -821,7 +821,7 @@ local function create_ban_record(name, source, reason, expires)
 	-- initialise last position
 	local last_pos = ""
 	if player then
-		last_pos = minetest.pos_to_string(vector.round(player:getpos()))
+		last_pos = minetest.pos_to_string(vector.round(player:get_pos()))
 	end
 
 	-- cache the ban
