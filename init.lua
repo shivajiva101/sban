@@ -39,6 +39,9 @@ local bans = {}
 local name_cache = {}
 local ip_cache = {}
 local hotlist = {}
+local failed = {}
+local retry = 2 -- retries for save_failed
+local delay = 5
 local DB = WP.."/sban.sqlite"
 local db_version = '0.2.1'
 local db = _sql.open(DB) -- connection
@@ -190,6 +193,49 @@ local function ip_key(str)
 	result:gsub('%:', '')
 	return result
 end
+
+local function save_failed()
+	for k,v in pairs(failed) do
+		if v.jt == 1 then
+			local stmt = ([[
+				BEGIN TRANSACTION;
+				INSERT INTO name (
+					id,
+					name,
+					created,
+					last_login,
+					login_count
+				) VALUES (%i,'%s',%i,%i,1);
+				INSERT INTO address (
+					id,
+					ip,
+					created,
+					last_login,
+					login_count,
+					violation
+				) VALUES (%i,'%s',%i,%i,1,0);
+				COMMIT;
+			]]):format(v.id,k,v.ts,v.ts,v.id,v.ip,v.ts,v.ts)
+			local res, err = db_exec(stmt)
+			if res then
+				minetest.log("action", ([[[sban] player record successfully
+					saved for %s with id %i after %i attempts!]]
+					):format(k,v.id,v.n))
+				failed[k] = nil -- remove
+			elseif err then
+				v.n = v.n + 1
+				if v.n > retry then
+					minetest.log("action", ([[[sban] player record failed to
+						save for %s with id %i after %i attempts!]]
+						):format(k,v.id,v.n))
+				end
+				failed[k] = nil -- remove
+			end
+		end
+	end
+	minetest.after(delay, save_failed)
+end
+minetest.after(delay, save_failed)
 
 if importer then
 
@@ -709,8 +755,8 @@ end
 -- @param ip string
 -- @return nil
 local function create_player_record(name, ip)
-	ID = ID + 1
 	local ts = os.time()
+	ID = ID + 1
 	local stmt = ([[
 		BEGIN TRANSACTION;
 		INSERT INTO name (
@@ -730,7 +776,18 @@ local function create_player_record(name, ip)
 		) VALUES (%i,'%s',%i,%i,1,0);
 		COMMIT;
 	]]):format(ID,name,ts,ts,ID,ip,ts,ts)
-	db_exec(stmt)
+	local res, err = db_exec(stmt)
+	if err then
+		-- add record to failed table. Id now assigned
+		-- use timestamp and id for subsequent attempts
+		failed[name] = {
+			id = id,
+			ip = ip,
+			ts = ts,
+			jt = 1, -- job type
+			n = 0
+		}
+	end
 	-- cache name record
 	name_cache[name] = {
 		id = ID,
