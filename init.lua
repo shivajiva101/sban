@@ -781,12 +781,13 @@ local function create_player_record(name, ip)
 		-- add record to failed table. Id now assigned
 		-- use timestamp and id for subsequent attempts
 		failed[name] = {
-			id = id,
+			id = ID,
 			ip = ip,
 			ts = ts,
 			jt = 1, -- job type
 			n = 0
 		}
+	elseif res then
 	end
 	-- cache name record
 	name_cache[name] = {
