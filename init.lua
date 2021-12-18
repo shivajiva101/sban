@@ -197,6 +197,7 @@ end
 local function save_failed()
 	for k,v in pairs(failed) do
 		if v.jt == 1 then
+			-- TODO call original function instead of duplicating code! Requires restructure
 			local stmt = ([[
 				BEGIN TRANSACTION;
 				INSERT INTO name (
@@ -788,14 +789,15 @@ local function create_player_record(name, ip)
 			n = 0
 		}
 	elseif res then
-	end
-	-- cache name record
-	name_cache[name] = {
+		-- cache name record
+		name_cache[name] = {
 		id = ID,
 		name = name,
 		last_login = ts
-	}
-	return ID
+		}
+		return ID
+	end
+	return
 end
 
 -- Create ip violation record
@@ -2196,10 +2198,10 @@ end)
 -- Register callback for prejoin event
 minetest.register_on_prejoinplayer(function(name, ip)
 
-	-- known player?
+	-- check and force caching of known player
 	local id = get_id(name) or get_id(ip)
 
-	if not id then return end -- unknown player
+	if not id then return end -- no db record, proceed
 
 	-- whitelist bypass
 	if WL[name] or WL[ip] then
@@ -2212,7 +2214,7 @@ minetest.register_on_prejoinplayer(function(name, ip)
 	local data = bans[id]
 
 	if not data then
-		-- check names per id
+		-- check for names_per_id if active
 		if names_per_id then
 			-- names per id
 			local names = name_records(id)
@@ -2233,7 +2235,7 @@ minetest.register_on_prejoinplayer(function(name, ip)
 				..msg)
 			end
 		end
-		-- check ip's per id
+		-- check ip's per id if active
 		if ip_limit then
 			local t = address_records(id)
 			for _,v in ipairs(t) do
@@ -2286,7 +2288,8 @@ minetest.register_on_joinplayer(function(player)
 		id = get_id(ip) -- ip search
 		if not id then
 			-- no records, create one
-			id = create_player_record(name, ip)
+			id = create_player_record(name, ip, false)
+			-- owner id init check
 			if not owner_id and name == owner then
 				owner_id = id -- initialise
 			end
@@ -2307,9 +2310,9 @@ minetest.register_on_joinplayer(function(player)
 			manage_idv_record(id, target_id, ip)
 			update_idv_status(ip)
 		else
-			update_address(id, ip)
+			update_address(id, ip) -- ip record last_login timestamp and counter
 		end
-		-- update record timestamp
+		-- name record last_login timestamp and counter
 		update_login(id, name)
 	end
 end)
