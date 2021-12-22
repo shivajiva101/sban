@@ -637,56 +637,6 @@ local function create_player_record(id, name, ts, ip)
 	return res, err
 end
 
--- Create ip violation record
--- @param src_id integer
--- @param target_id integer
--- @param ip string
--- @return res bool, error string
-local function manage_idv_record(src_id, target_id, ip)
-	local ts = os.time()
-	local stmt
-	local record = violation_record(src_id)
-	if record then
-		local idx
-		for i,v in ipairs(record) do
-			if v.id == target_id and v.ip == ip then
-				idx = i
-				break
-			end
-		end
-		if idx then
-			-- update record
-			record[idx].ctr = record[idx].ctr + 1
-			record[idx].last_login = ts
-		else
-			-- add record
-			record[#record+1] = {
-				id = target_id,
-				ip = ip,
-				ctr = 1,
-				created = ts,
-				last_login = ts
-			}
-		end
-		stmt = ([[
-			UPDATE violation SET data = '%s' WHERE id = %i;
-		]]):format(minetest.serialize(record), src_id)
-	else
-		record = {
-			id = target_id,
-			ip = ip,
-			ctr = 1,
-			created = ts,
-			last_login = ts
-		}
-		stmt = ([[
-			INSERT INTO violation VALUES (%i,'%s')
-		]]):format(src_id, minetest.serialize(record))
-	end
-	local res, err = db_exec(stmt)
-	return res, err
-end
-
 -- Create db whitelist record
 -- @param source name string
 -- @param name_or_ip string
@@ -1063,6 +1013,56 @@ local function update_address(id, ip)
 		 in the address table]]):format(ip, id))
 	end
 	return res
+end
+
+-- Create ip violation record
+-- @param src_id integer
+-- @param target_id integer
+-- @param ip string
+-- @return res bool, error string
+local function manage_idv(src_id, target_id, ip)
+	local ts = os.time()
+	local stmt
+	local record = violation_record(src_id)
+	if record then
+		local idx
+		for i,v in ipairs(record) do
+			if v.id == target_id and v.ip == ip then
+				idx = i
+				break
+			end
+		end
+		if idx then
+			-- update record
+			record[idx].ctr = record[idx].ctr + 1
+			record[idx].last_login = ts
+		else
+			-- add record
+			record[#record+1] = {
+				id = target_id,
+				ip = ip,
+				ctr = 1,
+				created = ts,
+				last_login = ts
+			}
+		end
+		stmt = ([[
+			UPDATE violation SET data = '%s' WHERE id = %i;
+		]]):format(minetest.serialize(record), src_id)
+	else
+		record = {
+			id = target_id,
+			ip = ip,
+			ctr = 1,
+			created = ts,
+			last_login = ts
+		}
+		stmt = ([[
+			INSERT INTO violation VALUES (%i,'%s')
+		]]):format(src_id, minetest.serialize(record))
+	end
+	local res, err = db_exec(stmt)
+	return res, err
 end
 
 -- Display player data on the console
@@ -2479,7 +2479,7 @@ minetest.register_on_joinplayer(function(player)
 			add_ip(id, ip) -- new address record
 		elseif target_id ~= id then
 			-- ip registered to another id!
-			manage_idv_record(id, target_id, ip)
+			manage_idv(id, target_id, ip)
 			update_idv_status(ip)
 		else
 			update_address(id, ip)
