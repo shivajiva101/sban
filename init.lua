@@ -1946,9 +1946,9 @@ minetest.register_on_player_receive_fields(function(player, formname, fields)
 end)
 
 --[[
-###########################
-###  Register Commands  ###
-###########################
+################################
+###  Register Chat Commands  ###
+################################
 ]]
 
 -- Register ban command
@@ -2001,25 +2001,76 @@ minetest.override_chatcommand("ban", {
 	end
 })
 
--- Register ban deletion command
-minetest.register_chatcommand("ban_del", {
-	description = "Deletes a player's sban records",
-	params = "player",
-	privs = {server = true},
+-- Register unban command
+minetest.override_chatcommand("unban", {
+	description = "Unban a player or ip banned with sban",
+	params = "<player_or_ip> <reason>",
+	privs = { ban = true },
 	func = function(name, params)
-		local player_name = params:match("%S+")
-		if not player_name then
-			return false, "Usage: /ban_del_record <player>"
+		local player_name, reason = params:match("(%S+)%s+(.+)")
+		if not (player_name and reason) then
+		return false, "Usage: /unban <player_or_ip> <reason>"
 		end
+		-- look for records by id
 		local id = get_id(player_name)
-		if not id then
-			return false, player_name.." doesn't exist!"
+		if id then
+			if not bans[id] then
+				return true, ("No active ban record for "..player_name)
+			end
+			update_ban(id, name, reason, player_name)
+			return true, ("Unbanned %s."):format(player_name)
 		end
-		del_ban(id)
-		minetest.log("action",
-		"ban records for "..player_name.." deleted by "..name)
-		return true, player_name.." ban records deleted!"
-	end
+	end,
+})
+
+
+-- Register temp ban command
+minetest.register_chatcommand("tempban", {
+	description = "Ban a player temporarily with sban",
+	params = "<player> <time> <reason>",
+	privs = { ban = true },
+	func = function(name, params)
+		local player_name, time, reason = params:match("(%S+)%s+(%S+)%s+(.+)")
+
+		if not (player_name and time and reason) then
+			-- correct params?
+			return false, "Usage: /tempban <player> <time> <reason>"
+		end
+
+		if player_name == owner then
+			-- protect owner account
+			return false, "Insufficient privileges!"
+		end
+
+		time = parse_time(time)
+		if time < 60 then
+			return false, "You must ban for at least 60 seconds."
+		end
+		local expires = os.time() + time
+
+		-- is player already banned?
+		local id = get_id(player_name)
+		local res, msg
+
+		msg = ("Banned %s until %s."):format(player_name, os.date("%c", expires))
+		if id then
+			if bans[id] then
+				return true, ("%s is already banned!"):format(player_name)
+			end
+			res = create_ban(player_name, name, reason, expires)
+		else
+			local privs = minetest.get_player_privs(name)
+			-- assert normal behaviour without admin priv
+			if not privs.ban_admin then
+				return false, "Player doesn't exist!"
+			end
+			-- create entry before ban
+			add_name(inc_id(), player_name)
+			res = create_ban(player_name, name, reason, expires)
+		end
+		if not res then msg = ("Failed to ban %s!"):format(player_name) end
+		return true, msg
+	end,
 })
 
 -- Register info command
@@ -2049,6 +2100,27 @@ minetest.register_chatcommand("ban_record", {
 			return false, "Insufficient privileges to access that information"
 		end
 		return true, display_record(name, playername)
+	end
+})
+
+-- Register ban deletion command
+minetest.register_chatcommand("ban_del", {
+	description = "Deletes a player's sban records",
+	params = "player",
+	privs = {server = true},
+	func = function(name, params)
+		local player_name = params:match("%S+")
+		if not player_name then
+			return false, "Usage: /ban_del <player>"
+		end
+		local id = get_id(player_name)
+		if not id then
+			return false, player_name.." doesn't exist!"
+		end
+		del_ban(id)
+		minetest.log("action",
+		"ban records for "..player_name.." deleted by "..name)
+		return true, player_name.." ban records deleted!"
 	end
 })
 
@@ -2104,77 +2176,6 @@ minetest.register_chatcommand("ban_wl", {
 		end
 		return false, helper
 	end
-})
-
--- Register temp ban command
-minetest.register_chatcommand("tempban", {
-	description = "Ban a player temporarily with sban",
-	params = "<player> <time> <reason>",
-	privs = { ban = true },
-	func = function(name, params)
-		local player_name, time, reason = params:match("(%S+)%s+(%S+)%s+(.+)")
-
-		if not (player_name and time and reason) then
-			-- correct params?
-			return false, "Usage: /tempban <player> <time> <reason>"
-		end
-
-		if player_name == owner then
-			-- protect owner account
-			return false, "Insufficient privileges!"
-		end
-
-		time = parse_time(time)
-		if time < 60 then
-			return false, "You must ban for at least 60 seconds."
-		end
-		local expires = os.time() + time
-
-		-- is player already banned?
-		local id = get_id(player_name)
-		local res, msg
-
-		msg = ("Banned %s until %s."):format(player_name, os.date("%c", expires))
-		if id then
-			if bans[id] then
-				return true, ("%s is already banned!"):format(player_name)
-			end
-			res = create_ban(player_name, name, reason, expires)
-		else
-			local privs = minetest.get_player_privs(name)
-			-- assert normal behaviour without admin priv
-			if not privs.ban_admin then
-				return false, "Player doesn't exist!"
-			end
-			-- create entry before ban
-			add_name(inc_id(), player_name)
-			res = create_ban(player_name, name, reason, expires)
-		end
-		if not res then msg = ("Failed to ban %s!"):format(player_name) end
-		return true, msg
-	end,
-})
-
--- Register unban command
-minetest.override_chatcommand("unban", {
-	description = "Unban a player or ip banned with sban",
-	params = "<player_or_ip> <reason>",
-	privs = { ban = true },
-	func = function(name, params)
-		local player_name, reason = params:match("(%S+)%s+(.+)")
-		if not (player_name and reason) then
-		return false, "Usage: /unban <player_or_ip> <reason>"
-		end
-		-- look for records by id
-		local id = get_id(player_name)
-		if id then
-			if not bans[id] then
-				return true, ("No active ban record for "..player_name)
-			end
-			update_ban(id, name, reason, player_name)
-			return true, ("Unbanned %s."):format(player_name)
-		end
-	end,
 })
 
 -- Register GUI command
