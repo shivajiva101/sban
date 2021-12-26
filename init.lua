@@ -859,18 +859,18 @@ local function create_player(name, ip)
 	end
 	res, err = create_player_record(id, name, ts, ip)
 	if err and failed[name] == nil then
-		-- create record
+		-- create job in queue
 		failed[name] = {
-			id = id,
-			ip = ip,
-			ts = ts,
+			id = id, -- assigned id
+			ip = ip, -- ip address
+			ts = ts, -- timestamp
 			jt = 1, -- job type
-			n = 0
+			n = 0 -- retry counter
 		}
 	elseif err and failed[name] then
 			return -1
 	elseif res then
-		-- cache name record
+		-- success, cache name record
 		name_cache[name] = {
 			id = id,
 			name = name,
@@ -1198,7 +1198,7 @@ end
 -- @return nil
 local function save_failed()
 	for key,val in pairs(failed) do
-		if val.jt == 1 then -- job type create
+		if val.jt == 1 then -- job type: create player record
 			local res = create_player(key, val.ip)
 			if res == val.id then -- matching id passed back
 				minetest.log("action", ([[[sban] player record successfully
@@ -1211,7 +1211,7 @@ local function save_failed()
 					minetest.log("action", ([[[sban] player record failed to
 						save for %s with id %i after %i attempts!]]
 					):format(key,val.id,val.n))
-					failed[key] = nil -- remove
+					failed[key] = nil -- remove from queue
 					-- kick player with a rejoin message
 					-- no point having a player connected
 					-- without a db record
@@ -1222,8 +1222,9 @@ local function save_failed()
 						player:set_detach()
 						minetest.kick_player(key, msg)
 					end
+				else
+					failed[key].n = val.n -- update
 				end
-				failed[key] = val
 			end
 		end
 	end
@@ -1669,7 +1670,7 @@ local function data_integrity_check()
 		LEFT JOIN name ON name.id = active.id
 	WHERE name.id IS NULL;]]
 	for row in db:nrows(q) do
-		minetest.log("action", ([[[sban] id: %i %s %s %s %s is orphaned!]]
+		minetest.log("warning", ([[[sban] id: %i %s %s %s %s is orphaned!]]
 		):format(row.id, row.name, row.source, hrdf(row.created), row.reason))
 	end
 	q = [[BEGIN TRANSACTION;
