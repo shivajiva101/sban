@@ -1763,11 +1763,14 @@ local function update_state(name, selected)
 	-- updates state used by formspec
 	local fs = get_state(name)
 	local id = get_id(selected)
-	local status = bans[id] == true
+	local status = false
 
 	fs.ban = player_ban_expired(id)
 	local cur = bans[id]
-	if cur then table.insert(fs.ban, cur) end
+	if cur then
+		table.insert(fs.ban, cur)
+		status = true
+	end
 
 	local info = ("Banned: %s\n"):format(status)
 	.. "Ban records: "..#fs.ban.."\n"
