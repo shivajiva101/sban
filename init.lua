@@ -583,8 +583,7 @@ local function add_name_record(id, name, ts)
 			INSERT INTO name (id,name,created,last_login,login_count)
 			VALUES (%i,'%s',%i,%i,1);
 	]]):format(id, name, ts, ts)
-	local res, err = db_exec(stmt)
-	return res, err
+	return db_exec(stmt)
 end
 
 -- Create ip record
@@ -603,8 +602,7 @@ local function add_ip_record(id, ip, ts)
 			violation
 		) VALUES (%i,'%s',%i,%i,1,0);
 	]]):format(id, ip, ts, ts)
-	local res, err = db_exec(stmt)
-	return res, err
+	return db_exec(stmt)
 end
 
 -- Create and cache id record
@@ -633,8 +631,7 @@ local function create_player_record(id, name, ts, ip)
 		) VALUES (%i,'%s',%i,%i,1,0);
 		COMMIT;
 	]]):format(id,name,ts,ts,id,ip,ts,ts)
-	local res, err = db_exec(stmt)
-	return res, err
+	return db_exec(stmt)
 end
 
 -- Create db whitelist record
@@ -647,8 +644,7 @@ local function add_whitelist_record(source, name_or_ip)
 			INSERT INTO whitelist
 			VALUES ('%s', '%s', %i)
 	]]):format(name_or_ip, source, ts)
-	local r, e = db_exec(stmt)
-	return r, e
+	return db_exec(stmt)
 end
 
 -- Create db ban record
@@ -664,8 +660,7 @@ local function create_ban_record(id, name, source, created, reason, expires, pos
 	local stmt = ([[
 		INSERT INTO active VALUES (%i,'%s','%s',%i,'%s',%i,'%s');
 	]]):format(id, name, source, created, reason, expires, pos)
-	local res, err = db_exec(stmt)
-	return res, err
+	return db_exec(stmt)
 end
 
 -- initialise db setting
@@ -676,8 +671,7 @@ local function init_setting(setting, data)
 	local stmt = ([[
 		INSERT INTO config VALUES ('%s', '%s');
 	]]):format(setting, data)
-	local res, err = db_exec(stmt)
-	return res, err
+	return db_exec(stmt)
 end
 
 --[[
@@ -689,7 +683,8 @@ end
 -- Update login record
 -- @param id integer
 -- @param name string
--- @return nil
+-- @return bool
+-- @return string on error
 local function update_login_record(id, name, ts)
 	-- update Db name record
 	local stmt = ([[
@@ -698,14 +693,14 @@ local function update_login_record(id, name, ts)
 	login_count = login_count + 1
 	WHERE name = '%s';
 	]]):format(ts, name)
-	local res, err = db_exec(stmt)
-	return res, err
+	return db_exec(stmt)
 end
 
 -- Update address record
 -- @param id integer
 -- @param ip string
--- @return nil
+-- @return bool
+-- @return string on error
 local function update_address_record(id, ip, ts)
 	local stmt = ([[
 		UPDATE address
@@ -714,8 +709,7 @@ local function update_address_record(id, ip, ts)
 		login_count = login_count + 1
 		WHERE id = %i AND ip = '%s';
 	]]):format(ts, id, ip)
-	local res, err = db_exec(stmt)
-	return res, err
+	return db_exec(stmt)
 end
 
 -- Update ban record
@@ -723,7 +717,8 @@ end
 -- @param source name string
 -- @param reason string
 -- @param name string
--- @return res bool, error string
+-- @return bool
+-- @return string on error
 local function update_ban_record(id, source, reason, name)
 	local ts = os.time()
 	local row = bans[id] -- use cached data
@@ -732,8 +727,7 @@ local function update_ban_record(id, source, reason, name)
 		DELETE FROM active WHERE id = %i;
 	]]):format(row.id, row.name, row.source, row.created, escape_string(row.reason),
 	row.expires, source, reason, ts, row.pos, row.id)
-	local res, err = db_exec(stmt)
-	return res, err
+	return db_exec(stmt)
 end
 
 -- Update violation status
@@ -746,8 +740,7 @@ local function update_idv_status(ip)
 	violation = 'true'
 	WHERE ip = '%s';
 	]]):format(ip)
-	local res, err = db_exec(stmt)
-	return res, err
+	return db_exec(stmt)
 end
 
 --[[
@@ -763,8 +756,7 @@ local function del_ban_record(id)
 	local stmt = ([[
 		DELETE FROM active WHERE id = %i
 	]]):format(id)
-	local res, err = db_exec(stmt)
-	return res, err
+	return db_exec(stmt)
 end
 
 -- Remove whitelist entry
@@ -774,8 +766,7 @@ local function del_whitelist_record(name_or_ip)
 	local stmt = ([[
 		DELETE FROM whitelist WHERE name_or_ip = '%s'
 	]]):format(name_or_ip)
-	local res, err = db_exec(stmt)
-	return res, err
+	return db_exec(stmt)
 end
 
 --[[
