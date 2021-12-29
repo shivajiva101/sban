@@ -577,7 +577,8 @@ build_cache()
 -- @param id integer
 -- @param name string
 -- @param ts integer utc
--- @return nil
+-- @return true
+-- @return false, error message
 local function add_name_record(id, name, ts)
 	local stmt = ([[
 			INSERT INTO name (id,name,created,last_login,login_count)
@@ -590,7 +591,8 @@ end
 -- @param id integer
 -- @param ip string
 -- @param ts integer os.time()
--- @return nil
+-- @return true
+-- @return false, error message
 local function add_ip_record(id, ip, ts)
 	local stmt = ([[
 		INSERT INTO address (
@@ -610,7 +612,8 @@ end
 -- @param name string
 -- @param ts integer
 -- @param ip string
--- @return res bool, error string
+-- @return true
+-- @return false, error message
 local function create_player_record(id, name, ts, ip)
 	local stmt = ([[
 		BEGIN TRANSACTION;
@@ -637,9 +640,9 @@ end
 -- Create db whitelist record
 -- @param source name string
 -- @param name_or_ip string
--- @return res bool, error msg
-local function add_whitelist_record(source, name_or_ip)
-	local ts = os.time()
+-- @return true
+-- @return false, error message
+local function add_whitelist_record(source, name_or_ip, ts)
 	local stmt = ([[
 			INSERT INTO whitelist
 			VALUES ('%s', '%s', %i)
@@ -655,7 +658,8 @@ end
 -- @param reason string
 -- @param expires integer
 -- @param pos string
--- @return res bool, error string
+-- @return true
+-- @return false, error message
 local function create_ban_record(id, name, source, created, reason, expires, pos)
 	local stmt = ([[
 		INSERT INTO active VALUES (%i,'%s','%s',%i,'%s',%i,'%s');
@@ -683,8 +687,8 @@ end
 -- Update login record
 -- @param id integer
 -- @param name string
--- @return bool
--- @return string on error
+-- @return true
+-- @return false, error message
 local function update_login_record(id, name, ts)
 	-- update Db name record
 	local stmt = ([[
@@ -699,8 +703,8 @@ end
 -- Update address record
 -- @param id integer
 -- @param ip string
--- @return bool
--- @return string on error
+-- @return true
+-- @return false, error message
 local function update_address_record(id, ip, ts)
 	local stmt = ([[
 		UPDATE address
@@ -717,11 +721,10 @@ end
 -- @param source name string
 -- @param reason string
 -- @param name string
--- @return bool
--- @return string on error
-local function update_ban_record(id, source, reason, name)
-	local ts = os.time()
-	local row = bans[id] -- use cached data
+-- @return true
+-- @return false, error message
+local function update_ban_record(id, source, reason, name, ts)
+	local row = bans[id] -- use ban cache table
 	local stmt = ([[
 		INSERT INTO expired VALUES (%i,'%s','%s',%i,'%s',%i,'%s','%s',%i,'%s');
 		DELETE FROM active WHERE id = %i;
@@ -732,7 +735,8 @@ end
 
 -- Update violation status
 -- @param ip string
--- @return nil
+-- @return true
+-- @return false, error message
 local function update_idv_status(ip)
 	local stmt = ([[
 	UPDATE address
@@ -751,7 +755,8 @@ end
 
 -- Remove ban record
 -- @param id integer
--- @return bool & string on error
+-- @return true
+-- @return false, error message
 local function del_ban_record(id)
 	local stmt = ([[
 		DELETE FROM active WHERE id = %i
@@ -761,7 +766,8 @@ end
 
 -- Remove whitelist entry
 -- @param name_or_ip string
--- @return nil
+-- @return true
+-- @return false, error message
 local function del_whitelist_record(name_or_ip)
 	local stmt = ([[
 		DELETE FROM whitelist WHERE name_or_ip = '%s'
@@ -893,7 +899,7 @@ local function create_ban(name, source, reason, expires)
 		pos = minetest.pos_to_string(vector.round(player:getpos()))
 	end
 
-	local res = create_ban_record(id, name, source, ts,	reason, expires, pos)
+	local res = create_ban_record(id, name, source, ts, reason, expires, pos)
 	if res then
 		-- cache the ban
 		bans[id] = {
@@ -940,8 +946,9 @@ end
 -- @param name string
 -- @return bool
 local function update_ban(id, source, reason, name)
+	local ts = os.time()
 	reason = escape_string(reason)
-	local res = update_ban_record(id, source, reason, name)
+	local res = update_ban_record(id, source, reason, name, ts)
 	if res then
 		bans[id] = nil -- update cache
 		-- log event
@@ -2151,7 +2158,8 @@ minetest.register_chatcommand("ban_wl", {
 		if param[2] then
 			if param[1] == "add" then
 				if not WL[param[2]] then
-					add_whitelist_record(name, param[2])
+					local ts = os.time()
+					add_whitelist_record(name, param[2], ts)
 					WL[param[2]] = true
 					minetest.log("action",
 					("%s added %s to whitelist"):format(name, param[2]))
