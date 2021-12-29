@@ -56,6 +56,8 @@ accessible via the arrows.
 
 ``` Usage: /bang ```
 
+Please note any client accessing this form without the required privilege i.e. a hacked client, will be logged and banned automatically!
+
 <b>ban</b>
 
 Bans a player permanently.
