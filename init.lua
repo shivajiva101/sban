@@ -39,7 +39,7 @@ local bans = {}
 local name_cache = {}
 local ip_cache = {}
 local hotlist = {}
-local failed = {}
+local queue = {}
 local retry = 2 -- retries for save_failed
 local delay = 5
 local DB = WP.."/sban.sqlite"
@@ -577,7 +577,8 @@ build_cache()
 -- @param id integer
 -- @param name string
 -- @param ts integer utc
--- @return nil
+-- @return true
+-- @return false, error message
 local function add_name_record(id, name, ts)
 	local stmt = ([[
 			INSERT INTO name (id,name,created,last_login,login_count)
@@ -590,7 +591,8 @@ end
 -- @param id integer
 -- @param ip string
 -- @param ts integer os.time()
--- @return nil
+-- @return true
+-- @return false, error message
 local function add_ip_record(id, ip, ts)
 	local stmt = ([[
 		INSERT INTO address (
@@ -610,7 +612,8 @@ end
 -- @param name string
 -- @param ts integer
 -- @param ip string
--- @return res bool, error string
+-- @return true
+-- @return false, error message
 local function create_player_record(id, name, ts, ip)
 	local stmt = ([[
 		BEGIN TRANSACTION;
@@ -637,9 +640,9 @@ end
 -- Create db whitelist record
 -- @param source name string
 -- @param name_or_ip string
--- @return res bool, error msg
-local function add_whitelist_record(source, name_or_ip)
-	local ts = os.time()
+-- @return true
+-- @return false, error message
+local function add_whitelist_record(source, name_or_ip, ts)
 	local stmt = ([[
 			INSERT INTO whitelist
 			VALUES ('%s', '%s', %i)
@@ -655,7 +658,8 @@ end
 -- @param reason string
 -- @param expires integer
 -- @param pos string
--- @return res bool, error string
+-- @return true
+-- @return false, error message
 local function create_ban_record(id, name, source, created, reason, expires, pos)
 	local stmt = ([[
 		INSERT INTO active VALUES (%i,'%s','%s',%i,'%s',%i,'%s');
@@ -683,8 +687,8 @@ end
 -- Update login record
 -- @param id integer
 -- @param name string
--- @return bool
--- @return string on error
+-- @return true
+-- @return false, error message
 local function update_login_record(id, name, ts)
 	-- update Db name record
 	local stmt = ([[
@@ -699,8 +703,8 @@ end
 -- Update address record
 -- @param id integer
 -- @param ip string
--- @return bool
--- @return string on error
+-- @return true
+-- @return false, error message
 local function update_address_record(id, ip, ts)
 	local stmt = ([[
 		UPDATE address
@@ -717,11 +721,10 @@ end
 -- @param source name string
 -- @param reason string
 -- @param name string
--- @return bool
--- @return string on error
-local function update_ban_record(id, source, reason, name)
-	local ts = os.time()
-	local row = bans[id] -- use cached data
+-- @return true
+-- @return false, error message
+local function update_ban_record(id, source, reason, name, ts)
+	local row = bans[id] -- use ban cache table
 	local stmt = ([[
 		INSERT INTO expired VALUES (%i,'%s','%s',%i,'%s',%i,'%s','%s',%i,'%s');
 		DELETE FROM active WHERE id = %i;
@@ -732,7 +735,8 @@ end
 
 -- Update violation status
 -- @param ip string
--- @return nil
+-- @return true
+-- @return false, error message
 local function update_idv_status(ip)
 	local stmt = ([[
 	UPDATE address
@@ -751,7 +755,8 @@ end
 
 -- Remove ban record
 -- @param id integer
--- @return bool & string on error
+-- @return true
+-- @return false, error message
 local function del_ban_record(id)
 	local stmt = ([[
 		DELETE FROM active WHERE id = %i
@@ -761,7 +766,8 @@ end
 
 -- Remove whitelist entry
 -- @param name_or_ip string
--- @return nil
+-- @return true
+-- @return false, error message
 local function del_whitelist_record(name_or_ip)
 	local stmt = ([[
 		DELETE FROM whitelist WHERE name_or_ip = '%s'
@@ -786,15 +792,18 @@ local function kicker(name_or_id, msg)
 		local id = get_id(name_or_id)
 		if id then r = name_records(id) end
 	end
-	if r == {} then return end
+	if r == {} then
+		minetest.log("warning", "Kicker: Failed to retrieve db record for " .. name_or_id)
+		table.insert(r, {name = name_or_id}) -- use the name passed in as a failsafe
+	end
 	for i, v in ipairs(r) do
 		local player = minetest.get_player_by_name(v.name)
 		if player then
-			-- defeat entity attached bypass mechanism
-			player:set_detach()
+			player:set_detach() -- not reqd in later versions of mt
 			minetest.kick_player(v.name, msg)
 		end
 	end
+	return true
 end
 
 -- Create and cache name record
@@ -829,7 +838,7 @@ local function add_ip(id, ip)
 	if res then
 		ip_cache[ip_key(ip)] = id -- cache
 	else
-		minetest.log("action", ([[[sban] Failed to add %s with id %i
+		minetest.log("warning", ([[[sban] Failed to add %s with id %i
 		 to the address table]]):format(ip, id))
 	end
 	return res
@@ -841,24 +850,26 @@ end
 -- @return nil, -1 or id
 local function create_player(name, ip)
 	local ts, id, res, err
-	if failed[name] then
-		ts = failed[name].ts
-		id = failed[name].id
+	if queue[name] then
+		-- assign saved id and timestamp
+		ts = queue[name].ts
+		id = queue[name].id
 	else
+		-- assign id and timestamp
 		ts = os.time()
 		id = inc_id()
 	end
 	res, err = create_player_record(id, name, ts, ip)
-	if err and failed[name] == nil then
-		-- create job in queue
-		failed[name] = {
+	if err and queue[name] == nil then
+		-- create new job
+		queue[name] = {
 			id = id, -- assigned id
 			ip = ip, -- ip address
 			ts = ts, -- timestamp
 			jt = 1, -- job type
 			n = 0 -- retry counter
 		}
-	elseif err and failed[name] then
+	elseif err and queue[name] then
 			return -1
 	elseif res then
 		-- success, cache name record
@@ -893,7 +904,7 @@ local function create_ban(name, source, reason, expires)
 		pos = minetest.pos_to_string(vector.round(player:getpos()))
 	end
 
-	local res = create_ban_record(id, name, source, ts,	reason, expires, pos)
+	local res = create_ban_record(id, name, source, ts, reason, expires, pos)
 	if res then
 		-- cache the ban
 		bans[id] = {
@@ -928,7 +939,8 @@ local function create_ban(name, source, reason, expires)
 		end
 		minetest.log("action", msg_l)
 
-		kicker(id, msg_k)
+		kicker(name, msg_k)
+
 	end
 	return res
 end
@@ -940,8 +952,9 @@ end
 -- @param name string
 -- @return bool
 local function update_ban(id, source, reason, name)
+	local ts = os.time()
 	reason = escape_string(reason)
-	local res = update_ban_record(id, source, reason, name)
+	local res = update_ban_record(id, source, reason, name, ts)
 	if res then
 		bans[id] = nil -- update cache
 		-- log event
@@ -1187,22 +1200,22 @@ end
 
 -- Save failed db inserts, limited to retry value
 -- @return nil
-local function save_failed()
-	for key,val in pairs(failed) do
+local function process_queue()
+	for key,val in pairs(queue) do
 		if val.jt == 1 then -- job type: create player record
 			local res = create_player(key, val.ip)
 			if res == val.id then -- matching id passed back
 				minetest.log("action", ([[[sban] player record successfully
 					saved for %s with id %i after %i attempts!]]
 				):format(key,val.id,val.n))
-				failed[key] = nil -- remove
+				queue[key] = nil -- remove
 			elseif res == -1 then -- failed
 				val.n = val.n + 1
 				if val.n > retry then
-					minetest.log("action", ([[[sban] player record failed to
+					minetest.log("warning", ([[[sban] player record failed to
 						save for %s with id %i after %i attempts!]]
 					):format(key,val.id,val.n))
-					failed[key] = nil -- remove from queue
+					queue[key] = nil -- remove from queue
 					-- kick player with a rejoin message
 					-- no point having a player connected
 					-- without a db record
@@ -1214,14 +1227,14 @@ local function save_failed()
 						minetest.kick_player(key, msg)
 					end
 				else
-					failed[key].n = val.n -- update
+					queue[key].n = val.n -- update attempts
 				end
 			end
 		end
 	end
-	minetest.after(delay, save_failed)
+	minetest.after(delay, process_queue)
 end
-minetest.after(delay, save_failed) -- initialise tmr
+minetest.after(delay, process_queue) -- initialise tmr
 
 --[[
 #######################
@@ -2151,7 +2164,8 @@ minetest.register_chatcommand("ban_wl", {
 		if param[2] then
 			if param[1] == "add" then
 				if not WL[param[2]] then
-					add_whitelist_record(name, param[2])
+					local ts = os.time()
+					add_whitelist_record(name, param[2], ts)
 					WL[param[2]] = true
 					minetest.log("action",
 					("%s added %s to whitelist"):format(name, param[2]))
