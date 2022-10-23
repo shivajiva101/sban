@@ -784,26 +784,23 @@ end
 -- Kicks players by name or id
 -- @param name_or_id string or integer
 -- @return nil
-local function kicker(name_or_id, msg)
-	local r
-	if type(name_or_id) == "number" then
-		r = name_records(name_or_id)
-	elseif type(name_or_id) == "string" then
-		local id = get_id(name_or_id)
-		if id then r = name_records(id) end
-	end
+local function kicker(player_name, msg)
+	local r, res
+	res = false
+	local id = get_id(player_name)
+	if id then r = name_records(id) end
 	if r == {} then
-		minetest.log("warning", "Kicker: Failed to retrieve db record for " .. name_or_id)
-		table.insert(r, {name = name_or_id}) -- use the name passed in as a failsafe
+		minetest.log("warning", "Kicker: Failed to retrieve db record for " .. player_name)
+		table.insert(r, {name = player_name}) -- use the name passed in as a failsafe
 	end
 	for i, v in ipairs(r) do
 		local player = minetest.get_player_by_name(v.name)
 		if player then
 			player:set_detach() -- not reqd in later versions of mt
-			minetest.kick_player(v.name, msg)
+			res = minetest.kick_player(v.name, msg)
 		end
 	end
-	return true
+	return res
 end
 
 -- Create and cache name record
@@ -1220,12 +1217,7 @@ local function process_queue()
 					-- no point having a player connected
 					-- without a db record
 					local msg = "There was a problem, please rejoin the server..."
-					local player = minetest.get_player_by_name(key)
-					if player then
-						-- defeat entity attached bypass mechanism
-						player:set_detach()
-						minetest.kick_player(key, msg)
-					end
+					kicker(key, msg)
 				else
 					queue[key].n = val.n -- update attempts
 				end
@@ -2206,27 +2198,24 @@ minetest.register_chatcommand("bang", {
 
 -- Register kick command (reqd for 5.0 ?)
 minetest.override_chatcommand("kick", {
-	params = "<name> [reason]",
+	params = "<name> <reason>",
 	description = "Kick a player",
 	privs = {kick=true},
 	func = function(name, param)
 		local tokick, reason = param:match("([^ ]+) (.+)")
-		tokick = tokick or param
+		if not (tokick and reason) then
+			return false, "Usage: /kick <player_name> <reason>"
+		end
 		local player = minetest.get_player_by_name(tokick)
 		if not player then
-			return false, "Player " .. tokick .. " not in game!"
+			return false, tokick .. " is not in game!"
 		end
-		if not minetest.kick_player(tokick, reason) then
-			player:set_detach()
-			if not minetest.kick_player(tokick, reason) then
-				return false, "Failed to kick player " .. tokick ..
-				" after detaching!"
-			end
+		if not kicker(tokick, reason) then
+			minetest.log("action", "core process failed when " .. name
+				.. " attempted to kick " .. tokick)
+			return false, "Failed to kick " .. tokick
 		end
-		local log_reason = ""
-		if reason then
-			log_reason = " with reason \"" .. reason .. "\""
-		end
+		local log_reason = " with reason \"" .. reason .. "\""
 		minetest.log("action", name .. " kicks " .. tokick .. log_reason)
 		return true, "Kicked " .. tokick
   end,
