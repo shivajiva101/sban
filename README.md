@@ -242,7 +242,7 @@ Please note this setting is optional and the default behaviour is unrestricted.
 
 <b>sban.ip_limit</b>
 
-Restricts how many ip addresses an id can have.
+Restricts how many ip addresses a single id can have.
 
 	sban.ip_limit = 10
 	
